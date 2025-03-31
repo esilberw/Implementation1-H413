@@ -5,56 +5,57 @@ import java.io.*;
 // Exercice 1.1:
 public class IterativeImprovement {
     public static void main(String[] args) throws IOException {
-        //if (args.length != 3) {
-        //    System.out.println("Usage: java IterativeImrpovemnt <pivoting_rule> <neighborhood> <init_method>");
-        //    System.out.println("Exemple: java Scheduler --first --transpose --srz");
-        //    return;
-        //}
+        // int[][] processingTimeTest = {
+        //        {3, 3, 4, 2, 3},
+        //        {2, 1, 3, 3, 1},
+        //        {4, 2, 1, 2, 3}
+        //};
+
+        // int[] permutationTest = {1, 3, 4 ,2};
+
+        if (args.length != 3) {
+            System.out.println("Usage: java IterativeImrpovemnt <pivoting_rule> <neighborhood> <init_method>");
+            System.out.println("Exemple: java Scheduler --first --transpose --srz");
+            return;
+        }
 
         List<String> validPivotingRules = Arrays.asList("--first", "--best");
         List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose");
         List<String> validInitMethods = Arrays.asList("--random", "--srz");
 
-        //String pivotingRule = args[0];
-        //String neighborhood = args[1];
-        //String initMethod = args[2];
+        String pivotingRule = args[0];
+        String neighborhood = args[1];
+        String initMethod = args[2];
 
-        //if (!validPivotingRules.contains(pivotingRule)) {
-        //    System.out.println("Erreur: Heuristic not valide. Options: --first, --best");
-        //    return;
-        //}
-        //if (!validNeighborhoods.contains(neighborhood)) {
-        //    System.out.println("Erreur: Pivoting Rule not valide. Options: --exchange, --transpose");
-        //    return;
-        //}
-        //if (!validInitMethods.contains(initMethod)) {
-        //    System.out.println("Erreur: Init Method not valid. Options: --random, --srz");
-        //    return;
-        //}
+        if (!validPivotingRules.contains(pivotingRule)) {
+            System.out.println("Erreur: Heuristic not valide. Options: --first, --best");
+            return;
+        }
+        if (!validNeighborhoods.contains(neighborhood)) {
+            System.out.println("Erreur: Pivoting Rule not valide. Options: --exchange, --transpose");
+            return;
+        }
+        if (!validInitMethods.contains(initMethod)) {
+            System.out.println("Erreur: Init Method not valid. Options: --random, --srz");
+            return;
+        }
 
-        int[][] processingTimeTest = {
-                {3, 3, 4, 2, 3},
-                {2, 1, 3, 3, 1},
-                {4, 2, 1, 2, 3}
-        };
 
-        int[] permutationTest = {1, 3, 4 ,2};
-
-        //int[][] processingTimes = readFile("src/Benchmarks/ta051");
-        System.out.println(computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimeTest, permutationTest)));
-        int[] initialPermutation = initializePermutation(processingTimeTest, "--SRZ");
+        int[][] processingTimes = readFile("src/Benchmarks/ta051");
+        int[] initialPermutation = initializePermutation(processingTimes, initMethod);
         System.out.println(Arrays.toString(initialPermutation));
-        //int[] bestPermutation;
-        //if (pivotingRule.equals("--first")) {
-        //    bestPermutation = firstImprovement(processingTimes, initialPermutation, neighborhood);
-        //}
+        int[] bestPermutation;
 
-        //else {
-        //    bestPermutation = bestImprovement(processingTimes, initialPermutation, neighborhood);
-        //}
+        if (pivotingRule.equals("--first")) {
+        bestPermutation = firstImprovement(processingTimes, initialPermutation, neighborhood);
+        }
 
-        //System.out.println("Best permutation: " + Arrays.toString(bestPermutation));
-        //System.out.println("Total completion time: " + computeCompletionTime(processingTimes, bestPermutation));
+        else {
+            bestPermutation = bestImprovement(processingTimes, initialPermutation, neighborhood);
+        }
+        //bestPermutation = variableNeighborhoodDescent(processingTimes, "--two");
+        System.out.println("Best permutation: " + Arrays.toString(bestPermutation));
+        System.out.println("Total completion time: " + computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, bestPermutation)));
     }
 
     public static int[][] readFile(String filename) throws IOException {
@@ -99,10 +100,7 @@ public class IterativeImprovement {
     }
 
     public static int[] getSRZPermutation(int[][]processingTimes){
-        int numJobs = processingTimes[0].length;
-        int numMachines = processingTimes.length;
-
-        int[] T_i = computeTiMatrix(processingTimes);
+        int[] T_i = computeTiArray(processingTimes);
 
         Integer[] starting_seq = new Integer[T_i.length];
         for (int i = 0; i < T_i.length; i++) {
@@ -112,15 +110,62 @@ public class IterativeImprovement {
         Arrays.sort(starting_seq, Comparator.comparingInt(i -> T_i[i]));
 
         int[] startingSeq = Arrays.stream(starting_seq).mapToInt(Integer::intValue).toArray();
-        int[] initSol = new int[numJobs];
-
-
+        System.out.println(Arrays.toString(startingSeq));
+        int[] initSol = generateBestInitSolution(startingSeq, processingTimes);
+        return initSol;
     }
 
-    private static int[] computeTiMatrix(int[][] processingTimes){
+    private static int[] generateBestInitSolution(int[] startingSeq, int[][] processingTimes) {
+        // TODO report, noter que la politique en cas de meme CT pour deux partial solutions c'est de retenir la denriere uniquement.
+        int numJobs = startingSeq.length;
+        int[] minCTSeq = new int[numJobs];
+        Arrays.fill(minCTSeq, -1); // Sentinel value to init
+        minCTSeq[0] = startingSeq[0];
+
+        for (int step = 1; step < numJobs; step++) {
+            int jobToInsert = startingSeq[step];
+            int minCT = Integer.MAX_VALUE;
+            int bestInsertPos = 0;
+            int[] tempSequence = new int[step + 1];
+
+            for (int insertPos = 0; insertPos <= step; insertPos++) {
+                int tempIdx = 0;
+                for (int k = 0; k <= step; k++) {
+                    if (k == insertPos) {
+                        tempSequence[k] = jobToInsert;
+                    } else {
+                        tempSequence[k] = minCTSeq[tempIdx++];
+                    }
+                }
+
+                int[][] currentCTMatrix = computeCompletionTimeMatrix(processingTimes, tempSequence);
+                int currentCT = computeTotalCompletionTime(currentCTMatrix);
+
+                if (currentCT <= minCT) {
+                    minCT = currentCT;
+                    bestInsertPos = insertPos;
+                }
+            }
+
+            // Complete the partial solution with the best job (=min Global CT of the seq of the partial solution) is found for the step index.
+            int[] newBestSequence = new int[step + 1];
+            int idx = 0;
+            for (int k = 0; k <= step; k++) {
+                if (k == bestInsertPos) {
+                    newBestSequence[k] = jobToInsert;
+                } else {
+                    newBestSequence[k] = minCTSeq[idx++];
+                }
+            }
+            minCTSeq = newBestSequence;
+        }
+        System.out.println(computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, minCTSeq)));
+        return minCTSeq;
+    }
+    private static int[] computeTiArray(int[][] processingTimes){
         int numJobs = processingTimes[0].length;
         int numMachines = processingTimes.length;
-        int[] T_i = new int[numJobs]; // init with 0, usefull for the addition of the Ti.
+        int[] T_i = new int[numJobs]; // init with 0, use it for the addition of the Ti.
 
         for (int j = 0; j < numJobs; j++){
             for (int m = 0; m < numMachines; m++){
@@ -156,13 +201,13 @@ public class IterativeImprovement {
                     int[] newPermutation = Arrays.copyOf(firstImprovePermutation, numJobs);
 
                     switch (neighborhood) {
-                        case "exchange":
+                        case "--exchange":
                             swap(newPermutation, i, j);
                             break;
-                        case "transpose":
+                        case "--transpose":
                             if (j == i + 1) swap(newPermutation, i, j); // swap only if both jobs are adjacent
                             break;
-                        case "insert":
+                        case "--insert":
                             insert(newPermutation, i, j);
                             break;
                     }
@@ -204,15 +249,14 @@ public class IterativeImprovement {
 
                     int[] newPermutation = Arrays.copyOf(bestImprovementPermutation, numJobs);
 
-                    // Apply the neighborhood operation
                     switch (neighborhood) {
-                        case "exchange":
+                        case "--exchange":
                             swap(newPermutation, i, j);
                             break;
-                        case "transpose":
+                        case "--transpose":
                             if (j == i + 1) swap(newPermutation, i, j); // swap only if both jobs are adjacent
                             break;
-                        case "insert":
+                        case "--insert":
                             insert(newPermutation, i, j);
                             break;
                     }
@@ -229,6 +273,39 @@ public class IterativeImprovement {
             }
         }
         return bestImprovementPermutation;
+    }
+
+    public static int[] variableNeighborhoodDescent(int[][] processingTimes, String neighborhoodOrder) {
+        int[] currentSolution = getSRZPermutation(processingTimes); // initial Solution SRZ
+
+        int currentCompletionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, currentSolution));
+
+        String[] neighborhoods;
+        if (neighborhoodOrder.equals("--one")) {
+            neighborhoods = new String[]{"--transpose", "--exchange", "--insert"};
+        }
+        else{
+            neighborhoods = new String[]{"--transpose", "--insert", "--exchange"};
+        }
+
+        boolean improved = true;
+
+        while (improved) {
+            improved = false;
+            for (String neighborhood : neighborhoods) {
+                int[] newSolution = firstImprovement(processingTimes, currentSolution, neighborhood);
+                int newCompletionTime =computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, newSolution));
+
+                if (newCompletionTime < currentCompletionTime) {
+                    currentSolution = newSolution;
+                    currentCompletionTime = newCompletionTime;
+                    improved = true;
+                    break; // Go back to the first N_i
+                }
+            }
+        };
+
+        return currentSolution;
     }
 
     private static void swap(int[] permutation, int i, int j) {
