@@ -13,9 +13,9 @@ public class IterativeImprovement {
 
         // int[] permutationTest = {1, 3, 4 ,2};
 
-        if (args.length != 3) {
-            System.out.println("Usage: java IterativeImrpovemnt <pivoting_rule> <neighborhood> <init_method>");
-            System.out.println("Exemple: java Scheduler --first --transpose --srz");
+        if (args.length < 2) {
+            System.out.println("Usage: $java IterativeImrpovemnt <pivoting_rule> <neighborhood> <init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
+            System.out.println("Exemple: $java IterativeImrpovemnt --first --transpose --srz\n         $java IterativeImrpovemnt --vnd --one\n");
             return;
         }
 
@@ -41,7 +41,7 @@ public class IterativeImprovement {
         }
 
 
-        int[][] processingTimes = readFile("src/Benchmarks/ta051");
+        int[][] processingTimes = readFile("./Benchmarks/ta051");
         int[] initialPermutation = initializePermutation(processingTimes, initMethod);
         System.out.println(Arrays.toString(initialPermutation));
         int[] bestPermutation;
@@ -104,7 +104,7 @@ public class IterativeImprovement {
 
         Integer[] starting_seq = new Integer[T_i.length];
         for (int i = 0; i < T_i.length; i++) {
-            starting_seq[i] = i;
+            starting_seq[i] = (Integer) i;
         }
 
         Arrays.sort(starting_seq, Comparator.comparingInt(i -> T_i[i]));
