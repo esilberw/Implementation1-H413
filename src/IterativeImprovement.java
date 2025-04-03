@@ -1,10 +1,18 @@
 // Author: Elliot Silberwasser - M-INFOS Heuristic Optimization INFO-H413:
 import java.util.*;
 import java.io.*;
+import java.io.File;
 
 // Exercice 1.1:
 public class IterativeImprovement {
+    static int[][] processingTimesMatrix;
+    static int numJobs;
+    static int numMachines;
+    static String taskFile;
+    static int numTest = 10;
+
     public static void main(String[] args) throws IOException {
+
         // int[][] processingTimeTest = {
         //        {3, 3, 4, 2, 3},
         //        {2, 1, 3, 3, 1},
@@ -13,59 +21,72 @@ public class IterativeImprovement {
 
         // int[] permutationTest = {1, 3, 4 ,2};
 
-        if (args.length < 2) {
-            System.out.println("Usage: $java IterativeImrpovemnt <pivoting_rule> <neighborhood> <init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
-            System.out.println("Exemple: $java IterativeImrpovemnt --first --transpose --srz\n         $java IterativeImrpovemnt --vnd --one\n");
+        if (args.length < 3) {
+            System.out.println("Usage: $java IterativeImrpovemnt <file_name> <pivoting_rule> <neighborhood> <init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
+            System.out.println("Exemple: $java IterativeImrpovemnt ./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeImrpovemnt /Benchmarks/ta051 --vnd --one\n");
             return;
         }
 
-        List<String> validPivotingRules = Arrays.asList("--first", "--best");
-        List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose");
+        List<String> validPivotingRules = Arrays.asList("--first", "--best", "--vnd");
+        List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose", "--insert", "--one", "--two");
         List<String> validInitMethods = Arrays.asList("--random", "--srz");
 
-        String pivotingRule = args[0];
-        String neighborhood = args[1];
-        String initMethod = args[2];
+        taskFile = args[0];
+        String pivotingRule = args[1];
+        String neighborhood = args[2];
+        String initMethod;
+
+        if (args.length == 3) {
+            initMethod = "--srz";
+        }
+        else{
+            // II Algorithms, need to specify the initMethod choice.
+            initMethod = args[3];
+        }
 
         if (!validPivotingRules.contains(pivotingRule)) {
             System.out.println("Erreur: Heuristic not valide. Options: --first, --best");
             return;
         }
         if (!validNeighborhoods.contains(neighborhood)) {
-            System.out.println("Erreur: Pivoting Rule not valide. Options: --exchange, --transpose");
+            System.out.println("Erreur: Pivoting Rule not valide. Options: --exchange, --transpose, --insert, --one, two");
             return;
         }
-        if (!validInitMethods.contains(initMethod)) {
+        if (args.length == 3 && !validInitMethods.contains(initMethod)) {
             System.out.println("Erreur: Init Method not valid. Options: --random, --srz");
             return;
         }
 
-
-        int[][] processingTimes = readFile("./Benchmarks/ta051");
-        int[] initialPermutation = initializePermutation(processingTimes, initMethod);
+        testBestII();
+        readFile(taskFile);
+        int[] initialPermutation = initializePermutation(initMethod);
         System.out.println(Arrays.toString(initialPermutation));
         int[] bestPermutation;
 
         if (pivotingRule.equals("--first")) {
-        bestPermutation = firstImprovement(processingTimes, initialPermutation, neighborhood);
+        bestPermutation = firstImprovement(initialPermutation, neighborhood);
+        }
+
+        else if (pivotingRule.equals("--best")) {
+            bestPermutation = bestImprovement(initialPermutation, neighborhood);
         }
 
         else {
-            bestPermutation = bestImprovement(processingTimes, initialPermutation, neighborhood);
+            bestPermutation = variableNeighborhoodDescent(neighborhood);
         }
-        //bestPermutation = variableNeighborhoodDescent(processingTimes, "--two");
+
         System.out.println("Best permutation: " + Arrays.toString(bestPermutation));
-        System.out.println("Total completion time: " + computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, bestPermutation)));
+        System.out.println("Total completion time: " + computeTotalCompletionTime(computeCompletionTimeMatrix(bestPermutation)));
     }
 
-    public static int[][] readFile(String filename) throws IOException {
+    public static void readFile(String filename) throws IOException {
         BufferedReader br = new BufferedReader(new FileReader(filename));
         String line = br.readLine();
         String[] parts = line.trim().split("\\s+");
 
-        int numJobs = Integer.parseInt(parts[0]);
-        int numMachines = Integer.parseInt(parts[1]);
-        int[][] processingTime = new int[numMachines][numJobs];
+        numJobs = Integer.parseInt(parts[0]);
+        numMachines = Integer.parseInt(parts[1]);
+        processingTimesMatrix = new int[numMachines][numJobs];
 
         for (int job = 0; job < numJobs; job++) {
             line = br.readLine();
@@ -73,16 +94,14 @@ public class IterativeImprovement {
             for (int k = 0; k < parts.length; k += 2) {
                 int machine = Integer.parseInt(parts[k]) - 1;  // -1 for the index (machine 1 -> index 0 in the code).
                 int processingtTime = Integer.parseInt(parts[k + 1]); // odd index = processingValue for the job.
-                processingTime[machine][job] = processingtTime;
+                processingTimesMatrix[machine][job] = processingtTime;
             }
         }
 
         br.close();
-        return processingTime;
     }
 
-    private static int[] initializePermutation(int[][] processingTimes, String initMethod) {
-        int numJobs = processingTimes[0].length;
+    public static int[] initializePermutation(String initMethod) {
         int[] permutation = new int[numJobs];
         for (int i = 0; i < numJobs; i++) {
             permutation[i] = i;
@@ -93,29 +112,28 @@ public class IterativeImprovement {
                 getRandomPermutation(permutation);
                 break;
             case "--SRZ":
-                permutation = getSRZPermutation(processingTimes);
+                permutation = getSRZPermutation();
                 break;
         }
         return permutation;
     }
 
-    public static int[] getSRZPermutation(int[][]processingTimes){
-        int[] T_i = computeTiArray(processingTimes);
+    public static int[] getSRZPermutation(){
+        int[] T_i = computeTiArray();
 
         Integer[] starting_seq = new Integer[T_i.length];
         for (int i = 0; i < T_i.length; i++) {
-            starting_seq[i] = (Integer) i;
+            starting_seq[i] = i;
         }
 
         Arrays.sort(starting_seq, Comparator.comparingInt(i -> T_i[i]));
 
         int[] startingSeq = Arrays.stream(starting_seq).mapToInt(Integer::intValue).toArray();
-        System.out.println(Arrays.toString(startingSeq));
-        int[] initSol = generateBestInitSolution(startingSeq, processingTimes);
+        int[] initSol = generateBestInitSolution(startingSeq);
         return initSol;
     }
 
-    private static int[] generateBestInitSolution(int[] startingSeq, int[][] processingTimes) {
+    public static int[] generateBestInitSolution(int[] startingSeq) {
         // TODO report, noter que la politique en cas de meme CT pour deux partial solutions c'est de retenir la denriere uniquement.
         int numJobs = startingSeq.length;
         int[] minCTSeq = new int[numJobs];
@@ -138,7 +156,7 @@ public class IterativeImprovement {
                     }
                 }
 
-                int[][] currentCTMatrix = computeCompletionTimeMatrix(processingTimes, tempSequence);
+                int[][] currentCTMatrix = computeCompletionTimeMatrix(tempSequence);
                 int currentCT = computeTotalCompletionTime(currentCTMatrix);
 
                 if (currentCT <= minCT) {
@@ -159,17 +177,16 @@ public class IterativeImprovement {
             }
             minCTSeq = newBestSequence;
         }
-        System.out.println(computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, minCTSeq)));
+        System.out.println(computeTotalCompletionTime(computeCompletionTimeMatrix(minCTSeq)));
         return minCTSeq;
     }
-    private static int[] computeTiArray(int[][] processingTimes){
-        int numJobs = processingTimes[0].length;
-        int numMachines = processingTimes.length;
+    public static int[] computeTiArray(){
+
         int[] T_i = new int[numJobs]; // init with 0, use it for the addition of the Ti.
 
         for (int j = 0; j < numJobs; j++){
             for (int m = 0; m < numMachines; m++){
-                T_i[j] += processingTimes[m][j];
+                T_i[j] += processingTimesMatrix[m][j];
             }
         }
         return T_i;
@@ -184,10 +201,9 @@ public class IterativeImprovement {
         }
     }
 
-    private static int[] firstImprovement(int[][] processingTimes, int[] permutation, String neighborhood) {
-        int numJobs = permutation.length;
+    public static int[] firstImprovement(int[] permutation, String neighborhood) {
         int[] firstImprovePermutation = Arrays.copyOf(permutation, numJobs);
-        int[][] completionTimeMatrix = computeCompletionTimeMatrix(processingTimes,firstImprovePermutation);
+        int[][] completionTimeMatrix = computeCompletionTimeMatrix(firstImprovePermutation);
         int minCompletionTime = computeTotalCompletionTime(completionTimeMatrix);
         boolean improved = true;
 
@@ -212,7 +228,7 @@ public class IterativeImprovement {
                             break;
                     }
 
-                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrix(processingTimes, newPermutation);
+                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrix(newPermutation);
                     int newCompletionTime = computeTotalCompletionTime(newCompletionTimeMatrix);
 
                     if (newCompletionTime < minCompletionTime) {
@@ -232,10 +248,9 @@ public class IterativeImprovement {
         return firstImprovePermutation;
     }
 
-    private static int[] bestImprovement(int[][] processingTimes, int[] permutation, String neighborhood) {
-        int numJobs = permutation.length;
+    public static int[] bestImprovement(int[] permutation, String neighborhood) {
         int[] bestImprovementPermutation = Arrays.copyOf(permutation, numJobs);
-        int[][] completionTimeMatrix = computeCompletionTimeMatrix(processingTimes, bestImprovementPermutation);
+        int[][] completionTimeMatrix = computeCompletionTimeMatrix(bestImprovementPermutation);
         int minCompletionTime = computeTotalCompletionTime(completionTimeMatrix);
 
         boolean improved = true;
@@ -260,7 +275,7 @@ public class IterativeImprovement {
                             insert(newPermutation, i, j);
                             break;
                     }
-                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrix(processingTimes, newPermutation);
+                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrix(newPermutation);
                     int newCompletionTime = computeTotalCompletionTime(newCompletionTimeMatrix);
 
                     // Search the min Completion time of all permutations:
@@ -275,10 +290,10 @@ public class IterativeImprovement {
         return bestImprovementPermutation;
     }
 
-    public static int[] variableNeighborhoodDescent(int[][] processingTimes, String neighborhoodOrder) {
-        int[] currentSolution = getSRZPermutation(processingTimes); // initial Solution SRZ
+    public static int[] variableNeighborhoodDescent(String neighborhoodOrder) {
+        int[] currentSolution = getSRZPermutation(); // initial Solution SRZ
 
-        int currentCompletionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, currentSolution));
+        int currentCompletionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(currentSolution));
 
         String[] neighborhoods;
         if (neighborhoodOrder.equals("--one")) {
@@ -293,8 +308,8 @@ public class IterativeImprovement {
         while (improved) {
             improved = false;
             for (String neighborhood : neighborhoods) {
-                int[] newSolution = firstImprovement(processingTimes, currentSolution, neighborhood);
-                int newCompletionTime =computeTotalCompletionTime(computeCompletionTimeMatrix(processingTimes, newSolution));
+                int[] newSolution = firstImprovement(currentSolution, neighborhood);
+                int newCompletionTime =computeTotalCompletionTime(computeCompletionTimeMatrix(newSolution));
 
                 if (newCompletionTime < currentCompletionTime) {
                     currentSolution = newSolution;
@@ -308,13 +323,13 @@ public class IterativeImprovement {
         return currentSolution;
     }
 
-    private static void swap(int[] permutation, int i, int j) {
+    public static void swap(int[] permutation, int i, int j) {
         int temp = permutation[i];
         permutation[i] = permutation[j];
         permutation[j] = temp;
     }
 
-    private static void insert(int[] permutation, int i, int j) {
+    public static void insert(int[] permutation, int i, int j) {
         int temp = permutation[i];
         if (i < j) {
             System.arraycopy(permutation, i + 1, permutation, i, j - i);
@@ -325,9 +340,8 @@ public class IterativeImprovement {
     }
 
 
-    private static int[][] computeCompletionTimeMatrix(int[][] processingTimes, int[] permutation) {
+    public static int[][] computeCompletionTimeMatrix(int[] permutation) {
         int numJobs = permutation.length;  // permutation.length to compute the SRZ initial solution. (partial computations)
-        int numMachines = processingTimes.length;
         int[][] completionTimeMatrix = new int[numMachines][numJobs];
 
         for (int j = 0; j < numJobs; j++) {
@@ -336,13 +350,13 @@ public class IterativeImprovement {
             for (int m = 0; m < numMachines; m++) {
 
                 if (m == 0 && j == 0) {
-                    completionTimeMatrix[m][j] = processingTimes[m][job];
+                    completionTimeMatrix[m][j] = processingTimesMatrix[m][job];
                 } else if (m == 0) {
-                    completionTimeMatrix[m][j] = completionTimeMatrix[m][j - 1] + processingTimes[m][job];
+                    completionTimeMatrix[m][j] = completionTimeMatrix[m][j - 1] + processingTimesMatrix[m][job];
                 } else if (j == 0) {
-                    completionTimeMatrix[m][j] = completionTimeMatrix[m - 1][j] + processingTimes[m][job];
+                    completionTimeMatrix[m][j] = completionTimeMatrix[m - 1][j] + processingTimesMatrix[m][job];
                 } else {
-                    completionTimeMatrix[m][j] = Math.max(completionTimeMatrix[m - 1][j], completionTimeMatrix[m][j - 1]) + processingTimes[m][job];
+                    completionTimeMatrix[m][j] = Math.max(completionTimeMatrix[m - 1][j], completionTimeMatrix[m][j - 1]) + processingTimesMatrix[m][job];
                 }
             }
         }
@@ -351,7 +365,7 @@ public class IterativeImprovement {
 
     }
 
-    private static int computeTotalCompletionTime(int[][] completionTimeMatrix){
+    public static int computeTotalCompletionTime(int[][] completionTimeMatrix){
         int numJobs = completionTimeMatrix[0].length;
         int numMachines = completionTimeMatrix.length;
         int totalCompletionTime = 0;
@@ -362,10 +376,25 @@ public class IterativeImprovement {
         return totalCompletionTime;
     }
 
-    private static int computeMakespan(int[][] completionTimeMatrix){
+    public static int computeMakespan(int[][] completionTimeMatrix){
         int numJobs = completionTimeMatrix[0].length;
         int numMachines = completionTimeMatrix.length;
         return completionTimeMatrix[numMachines - 1][numJobs - 1];
+    }
+
+    public static int testBestII() throws IOException {
+        File benchmarkFolder = new File("./Benchmarks");
+        File[] files = benchmarkFolder.listFiles((dir, name) -> name.startsWith("ta"));
+
+        for (File file : files) {
+            readFile(String.valueOf(file));
+
+            for (int i = 0; i < numTest; i++ ){
+
+            }
+        }
+        return 0;
+
     }
 }
 
