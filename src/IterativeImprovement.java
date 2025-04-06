@@ -9,10 +9,11 @@ public class IterativeImprovement {
     static int numJobs;
     static int numMachines;
     static String taskFile;
+    static int[] bestKnonwTCT;
     static int numTest = 10;
+    static File[] files;
 
     public static void main(String[] args) throws IOException {
-
         // int[][] processingTimeTest = {
         //        {3, 3, 4, 2, 3},
         //        {2, 1, 3, 3, 1},
@@ -20,10 +21,26 @@ public class IterativeImprovement {
         //};
 
         // int[] permutationTest = {1, 3, 4 ,2};
+        if (args[0].equals("--test") && args.length < 2) {
+            readBestKnownTCT("./bestKnownTCT/bestKnownTCT.txt");
 
-        if (args.length < 3) {
-            System.out.println("Usage: $java IterativeImrpovemnt <file_name> <pivoting_rule> <neighborhood> <init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
-            System.out.println("Exemple: $java IterativeImrpovemnt ./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeImrpovemnt /Benchmarks/ta051 --vnd --one\n");
+            File benchmarkFolder = new File("./Benchmarks");
+            files = benchmarkFolder.listFiles();
+
+            Arrays.sort(files, Comparator.comparing(File::getName));
+            //int[] testFirstOrderCompletionTimeValues = testFirstOrderVND();
+            //int[] testSecondOrderCompletionTimeValues = testSecondOrderVND();
+            int[] testBestExchangeRandomIIValues = testBestExchangeRandomII();
+            //int[] testFirstTransposeRandomIIValues = testFirstTransposeRandomII();
+            for (int i = 0; i < testBestExchangeRandomIIValues.length; i++) {
+                System.out.println(computeRelativePercDeviation(testBestExchangeRandomIIValues[i], bestKnonwTCT[i]));
+            }
+        }
+
+        else if (args.length < 3) {
+            System.out.println("Usage: $java IterativeImprovement <file_name> <pivoting_rule> <neighborhood> <init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
+            System.out.println("Exemple: $java IterativeImprovement./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeIImprovement /Benchmarks/ta051 --vnd --one\n");
+            System.out.println("       $java IterativeImprovement --test if you want to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
             return;
         }
 
@@ -57,7 +74,7 @@ public class IterativeImprovement {
             return;
         }
 
-        testBestII();
+
         readFile(taskFile);
         int[] initialPermutation = initializePermutation(initMethod);
         System.out.println(Arrays.toString(initialPermutation));
@@ -79,8 +96,8 @@ public class IterativeImprovement {
         System.out.println("Total completion time: " + computeTotalCompletionTime(computeCompletionTimeMatrix(bestPermutation)));
     }
 
-    public static void readFile(String filename) throws IOException {
-        BufferedReader br = new BufferedReader(new FileReader(filename));
+    public static void readFile(String fileName) throws IOException {
+        BufferedReader br = new BufferedReader(new FileReader(fileName));
         String line = br.readLine();
         String[] parts = line.trim().split("\\s+");
 
@@ -100,6 +117,44 @@ public class IterativeImprovement {
 
         br.close();
     }
+
+
+    public static void readBestKnownTCT(String filePath) {
+        ArrayList<Integer> valuesList = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+            String line;
+            boolean isFirstLine = true;
+
+            while ((line = reader.readLine()) != null) {
+                if (isFirstLine) {
+                    isFirstLine = false;
+                    continue; // Skip header
+                }
+
+                line = line.trim();
+                if (line.isEmpty()) continue;
+
+                String[] parts = line.split("[,\\s]+");
+                if (parts.length >= 2) {
+                    int value = Integer.parseInt(parts[1].trim());
+                    valuesList.add(value);
+                }
+            }
+
+
+        } catch (IOException e) {
+            System.err.println("Erreur lors de la lecture du fichier : " + e.getMessage());
+        }
+
+        int[] result = new int[valuesList.size()];
+        for (int i = 0; i < valuesList.size(); i++) {
+            result[i] = valuesList.get(i);
+        }
+
+        bestKnonwTCT = result;
+    }
+
 
     public static int[] initializePermutation(String initMethod) {
         int[] permutation = new int[numJobs];
@@ -213,7 +268,7 @@ public class IterativeImprovement {
             for (int i = 0; i < numJobs; i++) {
                 for (int j = 0; j < numJobs; j++) {
                     if (i == j) continue;  // avoid incorrect moves
-
+                    if (i > j) continue;
                     int[] newPermutation = Arrays.copyOf(firstImprovePermutation, numJobs);
 
                     switch (neighborhood) {
@@ -261,7 +316,7 @@ public class IterativeImprovement {
             for (int i = 0; i < numJobs; i++) {
                 for (int j = 0; j < numJobs; j++) {
                     if (i == j) continue;  // avoid incorrect moves
-
+                    if (i > j) continue;
                     int[] newPermutation = Arrays.copyOf(bestImprovementPermutation, numJobs);
 
                     switch (neighborhood) {
@@ -275,13 +330,15 @@ public class IterativeImprovement {
                             insert(newPermutation, i, j);
                             break;
                     }
-                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrix(newPermutation);
+
+                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrixAfterMove(newPermutation, completionTimeMatrix, i);
                     int newCompletionTime = computeTotalCompletionTime(newCompletionTimeMatrix);
 
                     // Search the min Completion time of all permutations:
                     if (newCompletionTime <minCompletionTime) {
                         minCompletionTime = newCompletionTime;
                         bestImprovementPermutation = Arrays.copyOf(newPermutation, numJobs);
+                        completionTimeMatrix = newCompletionTimeMatrix;
                         improved = true; // true but we continue the for i and the for j loops before return
                     }
                 }
@@ -340,6 +397,40 @@ public class IterativeImprovement {
     }
 
 
+    public static int[][] deepCopyMatrix(int[][] matrix) {
+        int[][] copy = new int[matrix.length][];
+        for (int i = 0; i < matrix.length; i++) {
+            copy[i] = Arrays.copyOf(matrix[i], matrix[i].length);
+        }
+        return copy;
+    }
+
+    public static int[][] computeCompletionTimeMatrixAfterMove(
+            int[] permutation,
+            int[][] currentCompletionMatrix,
+            int i) {
+
+        int numJobs = permutation.length;
+        int[][] updatedMatrix = deepCopyMatrix(currentCompletionMatrix);
+
+        for (int jobIdx = i; jobIdx < numJobs; jobIdx++) {
+            int job = permutation[jobIdx];
+            for (int m = 0; m < numMachines; m++) {
+                if (m == 0 && jobIdx == 0) {
+                    updatedMatrix[m][jobIdx] = processingTimesMatrix[m][job];
+                } else if (m == 0) {
+                    updatedMatrix[m][jobIdx] = updatedMatrix[m][jobIdx - 1] + processingTimesMatrix[m][job];
+                } else if (jobIdx == 0) {
+                    updatedMatrix[m][jobIdx] = updatedMatrix[m - 1][jobIdx] + processingTimesMatrix[m][job];
+                } else {
+                    updatedMatrix[m][jobIdx] = Math.max(updatedMatrix[m - 1][jobIdx], updatedMatrix[m][jobIdx - 1]) + processingTimesMatrix[m][job];
+                }
+            }
+        }
+
+        return updatedMatrix;
+    }
+
     public static int[][] computeCompletionTimeMatrix(int[] permutation) {
         int numJobs = permutation.length;  // permutation.length to compute the SRZ initial solution. (partial computations)
         int[][] completionTimeMatrix = new int[numMachines][numJobs];
@@ -382,19 +473,297 @@ public class IterativeImprovement {
         return completionTimeMatrix[numMachines - 1][numJobs - 1];
     }
 
-    public static int testBestII() throws IOException {
-        File benchmarkFolder = new File("./Benchmarks");
-        File[] files = benchmarkFolder.listFiles((dir, name) -> name.startsWith("ta"));
 
+    // BEST TEST:
+    public static int[] testBestExchangeRandomII() throws IOException {
+        System.out.println("Best Exchange Random Iterative Improvement:");
+        int[] bestIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
-
+            System.out.println(file);
             for (int i = 0; i < numTest; i++ ){
 
+                int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--exchange");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println(completionTime);
+                bestIICompletionTime[index] = completionTime;
+                index++;
             }
         }
-        return 0;
+        return bestIICompletionTime;
+    }
 
+    public static int[] testBestTransposeRandomII() throws IOException {
+        System.out.println("Best Transpose Random Iterative Improvement:");
+        int[] bestIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--transpose");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println(completionTime);
+                bestIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return bestIICompletionTime;
+    }
+
+    public static int[] testBestInsertRandomII() throws IOException {
+        System.out.println("Best Insert Random Iterative Improvement:");
+        int[] bestIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--insert");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println(completionTime);
+                bestIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return bestIICompletionTime;
+    }
+
+    public static int[] testBestExchangeSrzII() throws IOException {
+        System.out.println("Best Exchange SRZ Iterative Improvement:");
+        int[] bestIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--exchange");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println(completionTime);
+                bestIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return bestIICompletionTime;
+    }
+
+
+    public static int[] testBestTransposeSrzII() throws IOException {
+        System.out.println("Best Transpose SRZ Iterative Improvement:");
+        int[] bestIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--transpose");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println(completionTime);
+                bestIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return bestIICompletionTime;
+    }
+
+    public static int[] testBestInsertSrzII() throws IOException {
+        System.out.println("Best Insert SRZ Iterative Improvement:");
+        int[] bestIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--insert");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println(completionTime);
+                bestIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return bestIICompletionTime;
+    }
+
+
+    // FIRST TEST:
+    public static int[] testFirstExchangeRandomII() throws IOException {
+        System.out.println("First Exchange Random Iterative Improvement:");
+        int[] firstIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--exchange");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
+                System.out.println(completionTime);
+                firstIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return firstIICompletionTime;
+    }
+
+    public static int[] testFirstTransposeRandomII() throws IOException {
+        System.out.println("First Transpose Random Iterative Improvement:");
+        int[] firstIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--transpose");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
+                System.out.println(completionTime);
+                firstIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return firstIICompletionTime;
+    }
+
+    public static int[] testFirstInsertRandomII() throws IOException {
+        System.out.println("First Insert Random Iterative Improvement:");
+        int[] firstIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--insert");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
+                System.out.println(completionTime);
+                firstIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return firstIICompletionTime;
+    }
+
+    public static int[] testFirstExchangeSrzII() throws IOException {
+        System.out.println("First Exchange SRZ Iterative Improvement:");
+        int[] firstIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--exchange");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
+                System.out.println(completionTime);
+                firstIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return firstIICompletionTime;
+    }
+
+
+    public static int[] testFirstTransposeSrzII() throws IOException {
+        System.out.println("First Transpose SRZ Iterative Improvement:");
+        int[] firstIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--transpose");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
+                System.out.println(completionTime);
+                firstIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return firstIICompletionTime;
+    }
+
+
+    public static int[] testFirstInsertSrzII() throws IOException {
+        System.out.println("First Insert SRZ Iterative Improvement:");
+        int[] firstIICompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--insert");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
+                System.out.println(completionTime);
+                firstIICompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return firstIICompletionTime;
+    }
+
+    // VND TEST:
+    public static int[] testFirstOrderVND() throws IOException {
+        System.out.println("First Order VND:");
+        int[] VNDCompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] VNDPermutation = variableNeighborhoodDescent("--one");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(VNDPermutation));
+                System.out.println(completionTime);
+                VNDCompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return VNDCompletionTime;
+    }
+
+
+    public static int[] testSecondOrderVND() throws IOException {
+        System.out.println("Second Order VND:");
+        int[] VNDCompletionTime = new int[files.length * numTest];
+
+        int index = 0;
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            System.out.println(file);
+            for (int i = 0; i < numTest; i++ ){
+
+                int[] VNDPermutation = variableNeighborhoodDescent("--two");
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(VNDPermutation));
+                System.out.println(completionTime);
+                VNDCompletionTime[index] = completionTime;
+                index++;
+            }
+        }
+        return VNDCompletionTime;
+    }
+
+    public static int computeRelativePercDeviation(int completionTime, int bestKnown){
+        return 100 * ((completionTime - bestKnown) / bestKnown);
     }
 }
 
