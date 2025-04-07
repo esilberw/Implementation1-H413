@@ -3,97 +3,186 @@ import java.util.*;
 import java.io.*;
 import java.io.File;
 
-// Exercice 1.1:
 public class IterativeImprovement {
     static int[][] processingTimesMatrix;
     static int numJobs;
     static int numMachines;
     static String taskFile;
     static int[] bestKnonwTCT;
+    static float avgRelativePercDeviation;
     static int numTest = 10;
     static File[] files;
 
     public static void main(String[] args) throws IOException {
-        // int[][] processingTimeTest = {
-        //        {3, 3, 4, 2, 3},
-        //        {2, 1, 3, 3, 1},
-        //        {4, 2, 1, 2, 3}
-        //};
+        readBestKnownTCT("./bestKnownTCT/bestKnownTCT.txt");
+        File benchmarkFolder = new File("./Benchmarks");
+        files = benchmarkFolder.listFiles();
+        Arrays.sort(files, Comparator.comparing(File::getName));
 
-        // int[] permutationTest = {1, 3, 4 ,2};
-        if (args[0].equals("--test") && args.length < 2) {
-            readBestKnownTCT("./bestKnownTCT/bestKnownTCT.txt");
+        if (args[0].equals("--test") && args.length < 5) {
+            if (args.length == 4) {
+                String pivotingRule = args[1];
+                String neighborhood = args[2];
+                String initMethod = args[3];
 
-            File benchmarkFolder = new File("./Benchmarks");
-            files = benchmarkFolder.listFiles();
 
-            Arrays.sort(files, Comparator.comparing(File::getName));
-            //int[] testFirstOrderCompletionTimeValues = testFirstOrderVND();
-            //int[] testSecondOrderCompletionTimeValues = testSecondOrderVND();
-            int[] testBestExchangeRandomIIValues = testBestExchangeRandomII();
-            //int[] testFirstTransposeRandomIIValues = testFirstTransposeRandomII();
-            for (int i = 0; i < testBestExchangeRandomIIValues.length; i++) {
-                System.out.println(computeRelativePercDeviation(testBestExchangeRandomIIValues[i], bestKnonwTCT[i]));
+                if (pivotingRule.equals("--best") && initMethod.equals("--random")) {
+                    switch (neighborhood) {
+                        case "--exchange":
+                            int[] testBestExchangeRandomIIValues = testBestExchangeRandomII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testBestExchangeRandomIIValues[(files.length * numTest)]);
+                            break;
+                        case "--transpose":
+                            int[] testBestTransposeRandomIIValues = testBestTransposeRandomII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testBestTransposeRandomIIValues[(files.length * numTest)]);
+                            break;
+
+                        case "--insert":
+                            int[] testBestInsertRandomIIValues = testBestInsertRandomII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testBestInsertRandomIIValues[(files.length * numTest)]);
+                            break;
+
+                    }
+                }
+
+                if (pivotingRule.equals("--best") && initMethod.equals("--srz")) {
+                    switch (neighborhood) {
+                        case "--exchange":
+                            int[] testBestExchangeSrzIIValues = testBestExchangeSrzII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testBestExchangeSrzIIValues[(files.length * numTest)]);
+                            break;
+                        case "--transpose":
+                            int[] testBestTransposeSrzIIValues = testBestTransposeSrzII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testBestTransposeSrzIIValues[(files.length * numTest)]);
+                            break;
+
+                        case "--insert":
+                            int[] testBestInsertSrzIIValues = testBestInsertSrzII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testBestInsertSrzIIValues[(files.length * numTest)]);
+                            break;
+                    }
+
+                }
+
+                if (pivotingRule.equals("--first") && initMethod.equals("--random")) {
+                    switch (neighborhood) {
+                        case "--exchange":
+                            int[] testFirstExchangeRandomIIValues = testFirstExchangeRandomII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testFirstExchangeRandomIIValues[(files.length * numTest)]);
+                            break;
+                        case "--transpose":
+                            int[] testFirstTransposeRandomIIValues = testFirstTransposeRandomII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testFirstTransposeRandomIIValues[(files.length * numTest)]);
+                            break;
+
+                        case "--insert":
+                            int[] testFirstInsertRandomIIValues = testFirstInsertRandomII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testFirstInsertRandomIIValues[(files.length * numTest)]);
+                            break;
+                    }
+                }
+
+                if (pivotingRule.equals("--first") && initMethod.equals("--srz")) {
+                    switch (neighborhood) {
+                        case "--exchange":
+                            int[] testFirstExchangeSrzIIValues = testFirstExchangeSrzII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testFirstExchangeSrzIIValues[(files.length * numTest)]);
+                            break;
+                        case "--transpose":
+                            int[] testFirstTransposeSrzIIValues = testFirstTransposeSrzII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testFirstTransposeSrzIIValues[(files.length * numTest)]);
+                            break;
+
+                        case "--insert":
+                            int[] testFirstInsertSrzIIValues = testFirstInsertSrzII();
+                            System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                            System.out.println("Sum of Completion Time: " + testFirstInsertSrzIIValues[(files.length * numTest)]);
+                            break;
+                    }
+                }
+            } else if (args[1].equals("--vnd")) {
+                String neighborhoodOrder = args[2];
+                switch (neighborhoodOrder) {
+                    case "--one":
+                        int[] testFirstOrderCompletionTimeValues = testFirstOrderVND();
+                        System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                        System.out.println("Sum of Completion Time: " + testFirstOrderCompletionTimeValues[(files.length * numTest)]);
+                        break;
+                    case "--two":
+                        int[] testSecondOrderCompletionTimeValues = testSecondOrderVND();
+                        System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                        System.out.println("Sum of Completion Time: " + testSecondOrderCompletionTimeValues[(files.length * numTest)]);
+                        break;
+                }
+            } else {
+                System.out.println("Usage of test:\n$java IterativeImprovement --test --<pivoting_rule> --<neighborhood> --<init_method> to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
+                System.out.println("For the VND Variants:\n$java IterativeImprovement --test --vnd --<neighborhood_order>");
             }
         }
 
-        else if (args.length < 3) {
-            System.out.println("Usage: $java IterativeImprovement <file_name> <pivoting_rule> <neighborhood> <init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
-            System.out.println("Exemple: $java IterativeImprovement./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeIImprovement /Benchmarks/ta051 --vnd --one\n");
-            System.out.println("       $java IterativeImprovement --test if you want to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
-            return;
-        }
-
-        List<String> validPivotingRules = Arrays.asList("--first", "--best", "--vnd");
-        List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose", "--insert", "--one", "--two");
-        List<String> validInitMethods = Arrays.asList("--random", "--srz");
-
-        taskFile = args[0];
-        String pivotingRule = args[1];
-        String neighborhood = args[2];
-        String initMethod;
-
-        if (args.length == 3) {
-            initMethod = "--srz";
-        }
-        else{
-            // II Algorithms, need to specify the initMethod choice.
-            initMethod = args[3];
-        }
-
-        if (!validPivotingRules.contains(pivotingRule)) {
-            System.out.println("Erreur: Heuristic not valide. Options: --first, --best");
-            return;
-        }
-        if (!validNeighborhoods.contains(neighborhood)) {
-            System.out.println("Erreur: Pivoting Rule not valide. Options: --exchange, --transpose, --insert, --one, two");
-            return;
-        }
-        if (args.length == 3 && !validInitMethods.contains(initMethod)) {
-            System.out.println("Erreur: Init Method not valid. Options: --random, --srz");
-            return;
-        }
-
-
-        readFile(taskFile);
-        int[] initialPermutation = initializePermutation(initMethod);
-        System.out.println(Arrays.toString(initialPermutation));
-        int[] bestPermutation;
-
-        if (pivotingRule.equals("--first")) {
-        bestPermutation = firstImprovement(initialPermutation, neighborhood);
-        }
-
-        else if (pivotingRule.equals("--best")) {
-            bestPermutation = bestImprovement(initialPermutation, neighborhood);
+        else if (args.length < 2) {
+            System.out.println("Usage: $java IterativeImprovement --<file_name> --<pivoting_rule> --<neighborhood> --<init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
+            System.out.println("Exemple: $java IterativeImprovement ./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeIImprovement ./Benchmarks/ta051 --vnd --one\n");
         }
 
         else {
-            bestPermutation = variableNeighborhoodDescent(neighborhood);
-        }
+            List<String> validPivotingRules = Arrays.asList("--first", "--best", "--vnd");
+            List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose", "--insert", "--one", "--two");
+            List<String> validInitMethods = Arrays.asList("--random", "--srz");
 
-        System.out.println("Best permutation: " + Arrays.toString(bestPermutation));
-        System.out.println("Total completion time: " + computeTotalCompletionTime(computeCompletionTimeMatrix(bestPermutation)));
+            taskFile = args[0];
+            String pivotingRule = args[1];
+            String neighborhood = args[2];
+            String initMethod;
+
+            if (args.length == 3) {
+                initMethod = "--srz";
+            } else {
+                // II Algorithms, need to specify the initMethod choice.
+                initMethod = args[3];
+            }
+
+            if (!validPivotingRules.contains(pivotingRule)) {
+                System.out.println("Error: Heuristic not valide. Options: --first, --best");
+                return;
+            }
+            if (!validNeighborhoods.contains(neighborhood)) {
+                System.out.println("Error: Pivoting Rule not valide. Options: --exchange, --transpose, --insert, --one, two");
+                return;
+            }
+            if (args.length == 3 && !validInitMethods.contains(initMethod)) {
+                System.out.println("Error: Init Method not valid. Options: --random, --srz");
+                return;
+            }
+
+
+            readFile(taskFile);
+            int[] initialPermutation = initializePermutation(initMethod);
+            System.out.println(Arrays.toString(initialPermutation));
+            int[] bestPermutation;
+
+            if (pivotingRule.equals("--first")) {
+                bestPermutation = firstImprovement(initialPermutation, neighborhood);
+            } else if (pivotingRule.equals("--best")) {
+                bestPermutation = bestImprovement(initialPermutation, neighborhood);
+            } else {
+                bestPermutation = variableNeighborhoodDescent(neighborhood);
+            }
+
+            System.out.println("Best permutation: " + Arrays.toString(bestPermutation));
+            System.out.println("Total completion time : " + computeTotalCompletionTime(computeCompletionTimeMatrix(bestPermutation)));
+        }
     }
 
     public static void readFile(String fileName) throws IOException {
@@ -232,9 +321,9 @@ public class IterativeImprovement {
             }
             minCTSeq = newBestSequence;
         }
-        System.out.println(computeTotalCompletionTime(computeCompletionTimeMatrix(minCTSeq)));
         return minCTSeq;
     }
+
     public static int[] computeTiArray(){
 
         int[] T_i = new int[numJobs]; // init with 0, use it for the addition of the Ti.
@@ -249,8 +338,8 @@ public class IterativeImprovement {
 
     public static void getRandomPermutation(int[] permutation) {
         Random rand = new Random();
-        for (int i = permutation.length - 1; i > 0; i--) {
 
+        for (int i = permutation.length - 1; i > 0; i--) {
             int j = rand.nextInt(i + 1); // generate a random index between [0; i + 1[
             swap(permutation, i, j);
         }
@@ -266,10 +355,9 @@ public class IterativeImprovement {
             improved = false;
 
             for (int i = 0; i < numJobs; i++) {
-                for (int j = 0; j < numJobs; j++) {
-                    if (i == j) continue;  // avoid incorrect moves
-                    if (i > j) continue;
-                    int[] newPermutation = Arrays.copyOf(firstImprovePermutation, numJobs);
+                for (int j = i + 1; j < numJobs; j++) {
+
+                    int[] newPermutation = firstImprovePermutation.clone();
 
                     switch (neighborhood) {
                         case "--exchange":
@@ -283,18 +371,20 @@ public class IterativeImprovement {
                             break;
                     }
 
-                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrix(newPermutation);
+                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrixAfterMove(newPermutation, completionTimeMatrix, i);
                     int newCompletionTime = computeTotalCompletionTime(newCompletionTimeMatrix);
 
                     if (newCompletionTime < minCompletionTime) {
                         minCompletionTime = newCompletionTime;
-                        firstImprovePermutation = Arrays.copyOf(newPermutation, numJobs);
+                        firstImprovePermutation = newPermutation.clone();
                         improved = true;
+                        completionTimeMatrix = newCompletionTimeMatrix;
                         break;  // First improvement is found, we stop the for j loop
                     }
                 }
 
                 if (improved) {
+
                     break;  // First improvement is found, we stop the for i loop
                 }
 
@@ -314,9 +404,7 @@ public class IterativeImprovement {
             improved = false;
 
             for (int i = 0; i < numJobs; i++) {
-                for (int j = 0; j < numJobs; j++) {
-                    if (i == j) continue;  // avoid incorrect moves
-                    if (i > j) continue;
+                for (int j = i + 1; j < numJobs; j++) {
                     int[] newPermutation = Arrays.copyOf(bestImprovementPermutation, numJobs);
 
                     switch (neighborhood) {
@@ -335,7 +423,7 @@ public class IterativeImprovement {
                     int newCompletionTime = computeTotalCompletionTime(newCompletionTimeMatrix);
 
                     // Search the min Completion time of all permutations:
-                    if (newCompletionTime <minCompletionTime) {
+                    if (newCompletionTime < minCompletionTime) {
                         minCompletionTime = newCompletionTime;
                         bestImprovementPermutation = Arrays.copyOf(newPermutation, numJobs);
                         completionTimeMatrix = newCompletionTimeMatrix;
@@ -477,122 +565,203 @@ public class IterativeImprovement {
     // BEST TEST:
     public static int[] testBestExchangeRandomII() throws IOException {
         System.out.println("Best Exchange Random Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest];
+        int[] bestIICompletionTime = new int[(files.length * numTest) + 2]; // + 1 for the average relative percentage deviation and the sum of CT
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
-            for (int i = 0; i < numTest; i++ ){
+
+            int bestValue= bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
+            for (int i = 0; i < numTest; i++){
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--exchange");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
 
     public static int[] testBestTransposeRandomII() throws IOException {
         System.out.println("Best Transpose Random Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest];
+        int[] bestIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
-            for (int i = 0; i < numTest; i++ ){
+
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
+            for (int i = 0; i < numTest; i++) {
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
 
     public static int[] testBestInsertRandomII() throws IOException {
         System.out.println("Best Insert Random Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest];
+        int[] bestIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
 
     public static int[] testBestExchangeSrzII() throws IOException {
         System.out.println("Best Exchange SRZ Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest];
+        int[] bestIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--exchange");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
 
 
     public static int[] testBestTransposeSrzII() throws IOException {
         System.out.println("Best Transpose SRZ Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest];
+        int[] bestIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
 
     public static int[] testBestInsertSrzII() throws IOException {
         System.out.println("Best Insert SRZ Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest];
+        int[] bestIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
 
@@ -600,170 +769,267 @@ public class IterativeImprovement {
     // FIRST TEST:
     public static int[] testFirstExchangeRandomII() throws IOException {
         System.out.println("First Exchange Random Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest];
+        int[] firstIICompletionTime = new int[files.length * numTest  + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--exchange");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
 
     public static int[] testFirstTransposeRandomII() throws IOException {
         System.out.println("First Transpose Random Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest];
+        int[] firstIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
             for (int i = 0; i < numTest; i++ ){
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
 
     public static int[] testFirstInsertRandomII() throws IOException {
         System.out.println("First Insert Random Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest];
+        int[] firstIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
 
     public static int[] testFirstExchangeSrzII() throws IOException {
         System.out.println("First Exchange SRZ Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest];
+        int[] firstIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--exchange");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
 
 
     public static int[] testFirstTransposeSrzII() throws IOException {
         System.out.println("First Transpose SRZ Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest];
+        int[] firstIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
 
 
     public static int[] testFirstInsertSrzII() throws IOException {
         System.out.println("First Insert SRZ Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest];
+        int[] firstIICompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
+
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
             for (int i = 0; i < numTest; i++ ){
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
+
         return firstIICompletionTime;
     }
 
     // VND TEST:
     public static int[] testFirstOrderVND() throws IOException {
         System.out.println("First Order VND:");
-        int[] VNDCompletionTime = new int[files.length * numTest];
+        int[] VNDCompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
             for (int i = 0; i < numTest; i++ ){
 
                 int[] VNDPermutation = variableNeighborhoodDescent("--one");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(VNDPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 VNDCompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        VNDCompletionTime[index] = sumCT;
+        VNDCompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return VNDCompletionTime;
     }
 
 
     public static int[] testSecondOrderVND() throws IOException {
         System.out.println("Second Order VND:");
-        int[] VNDCompletionTime = new int[files.length * numTest];
+        int[] VNDCompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
+        int bestValueIndex = 0;
+        int sumCT = 0;
+        float averageRelativePercDeviation = 0;
         for (File file : files) {
             readFile(String.valueOf(file));
             System.out.println(file);
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
             for (int i = 0; i < numTest; i++ ){
 
                 int[] VNDPermutation = variableNeighborhoodDescent("--two");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(VNDPermutation));
-                System.out.println(completionTime);
+                System.out.println("CT: "  + completionTime);
+                sumCT += completionTime;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 VNDCompletionTime[index] = completionTime;
                 index++;
             }
         }
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        VNDCompletionTime[index] = sumCT;
+        VNDCompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return VNDCompletionTime;
     }
 
-    public static int computeRelativePercDeviation(int completionTime, int bestKnown){
-        return 100 * ((completionTime - bestKnown) / bestKnown);
+    public static float computeRelativePercDeviation(int completionTime, int bestKnown){
+        return 100 * ((float) (completionTime - bestKnown) / bestKnown);
     }
 }
-
