@@ -1,4 +1,5 @@
 // Author: Elliot Silberwasser - M-INFOS Heuristic Optimization INFO-H413:
+
 import java.util.*;
 import java.io.*;
 import java.io.File;
@@ -129,14 +130,10 @@ public class IterativeImprovement {
                 System.out.println("Usage of test:\n$java IterativeImprovement --test --<pivoting_rule> --<neighborhood> --<init_method> to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
                 System.out.println("For the VND Variants:\n$java IterativeImprovement --test --vnd --<neighborhood_order>");
             }
-        }
-
-        else if (args.length < 2) {
+        } else if (args.length < 2) {
             System.out.println("Usage: $java IterativeImprovement --<file_name> --<pivoting_rule> --<neighborhood> --<init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
             System.out.println("Exemple: $java IterativeImprovement ./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeIImprovement ./Benchmarks/ta051 --vnd --one\n");
-        }
-
-        else {
+        } else {
             List<String> validPivotingRules = Arrays.asList("--first", "--best", "--vnd");
             List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose", "--insert", "--one", "--two");
             List<String> validInitMethods = Arrays.asList("--random", "--srz");
@@ -251,7 +248,7 @@ public class IterativeImprovement {
             permutation[i] = i;
         }
 
-        switch(initMethod) {
+        switch (initMethod) {
             case "--random":
                 getRandomPermutation(permutation);
                 break;
@@ -262,7 +259,7 @@ public class IterativeImprovement {
         return permutation;
     }
 
-    public static int[] getSRZPermutation(){
+    public static int[] getSRZPermutation() {
         int[] T_i = computeTiArray();
 
         Integer[] starting_seq = new Integer[T_i.length];
@@ -278,7 +275,6 @@ public class IterativeImprovement {
     }
 
     public static int[] generateBestInitSolution(int[] startingSeq) {
-        // TODO report, noter que la politique en cas de meme CT pour deux partial solutions c'est de retenir la denriere uniquement.
         int numJobs = startingSeq.length;
         int[] minCTSeq = new int[numJobs];
         Arrays.fill(minCTSeq, -1); // Sentinel value to init
@@ -324,12 +320,12 @@ public class IterativeImprovement {
         return minCTSeq;
     }
 
-    public static int[] computeTiArray(){
+    public static int[] computeTiArray() {
 
         int[] T_i = new int[numJobs]; // init with 0, use it for the addition of the Ti.
 
-        for (int j = 0; j < numJobs; j++){
-            for (int m = 0; m < numMachines; m++){
+        for (int j = 0; j < numJobs; j++) {
+            for (int m = 0; m < numMachines; m++) {
                 T_i[j] += processingTimesMatrix[m][j];
             }
         }
@@ -443,8 +439,7 @@ public class IterativeImprovement {
         String[] neighborhoods;
         if (neighborhoodOrder.equals("--one")) {
             neighborhoods = new String[]{"--transpose", "--exchange", "--insert"};
-        }
-        else{
+        } else {
             neighborhoods = new String[]{"--transpose", "--insert", "--exchange"};
         }
 
@@ -454,7 +449,7 @@ public class IterativeImprovement {
             improved = false;
             for (String neighborhood : neighborhoods) {
                 int[] newSolution = firstImprovement(currentSolution, neighborhood);
-                int newCompletionTime =computeTotalCompletionTime(computeCompletionTimeMatrix(newSolution));
+                int newCompletionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(newSolution));
 
                 if (newCompletionTime < currentCompletionTime) {
                     currentSolution = newSolution;
@@ -463,7 +458,8 @@ public class IterativeImprovement {
                     break; // Go back to the first N_i
                 }
             }
-        };
+        }
+        ;
 
         return currentSolution;
     }
@@ -544,18 +540,18 @@ public class IterativeImprovement {
 
     }
 
-    public static int computeTotalCompletionTime(int[][] completionTimeMatrix){
+    public static int computeTotalCompletionTime(int[][] completionTimeMatrix) {
         int numJobs = completionTimeMatrix[0].length;
         int numMachines = completionTimeMatrix.length;
         int totalCompletionTime = 0;
         for (int j = 0; j < numJobs; j++) {
-            totalCompletionTime += completionTimeMatrix[numMachines -1][j];
+            totalCompletionTime += completionTimeMatrix[numMachines - 1][j];
         }
 
         return totalCompletionTime;
     }
 
-    public static int computeMakespan(int[][] completionTimeMatrix){
+    public static int computeMakespan(int[][] completionTimeMatrix) {
         int numJobs = completionTimeMatrix[0].length;
         int numMachines = completionTimeMatrix.length;
         return completionTimeMatrix[numMachines - 1][numJobs - 1];
@@ -569,31 +565,45 @@ public class IterativeImprovement {
 
         int index = 0;
         int bestValueIndex = 0;
-        int sumCT = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
         float averageRelativePercDeviation = 0;
-
+        int previousNumJobs = numJobs;
         for (File file : files) {
             readFile(String.valueOf(file));
-            System.out.println(file);
-
-            int bestValue= bestKnonwTCT[bestValueIndex];
+            int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++){
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
 
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--exchange");
+                long endTime = System.currentTimeMillis();
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println("CT: "  + completionTime);
-                sumCT += completionTime;
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
-
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
         averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
-        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index] = (int) totalComputationTIme;
         bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
@@ -618,7 +628,7 @@ public class IterativeImprovement {
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
@@ -648,11 +658,11 @@ public class IterativeImprovement {
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            for (int i = 0; i < numTest; i++) {
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--random"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
@@ -668,33 +678,49 @@ public class IterativeImprovement {
 
     public static int[] testBestExchangeSrzII() throws IOException {
         System.out.println("Best Exchange SRZ Iterative Improvement:");
-        int[] bestIICompletionTime = new int[files.length * numTest + 2];
+        int[] bestIICompletionTime = new int[(files.length * numTest) + 2]; // + 1 for the average relative percentage deviation and the sum of CT
 
         int index = 0;
         int bestValueIndex = 0;
-        int sumCT = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
         float averageRelativePercDeviation = 0;
-
+        int previousNumJobs = numJobs;
         for (File file : files) {
             readFile(String.valueOf(file));
-            System.out.println(file);
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
 
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--exchange");
+                long endTime = System.currentTimeMillis();
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println("CT: "  + completionTime);
-                sumCT += completionTime;
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
         averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
-        bestIICompletionTime[index] = sumCT;
+        bestIICompletionTime[index] = (int) totalComputationTIme;
         bestIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return bestIICompletionTime;
     }
@@ -714,11 +740,11 @@ public class IterativeImprovement {
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            for (int i = 0; i < numTest; i++) {
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
@@ -747,11 +773,11 @@ public class IterativeImprovement {
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            for (int i = 0; i < numTest; i++) {
 
                 int[] bestIIPermutation = bestImprovement(initializePermutation("--srz"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 bestIICompletionTime[index] = completionTime;
@@ -769,35 +795,53 @@ public class IterativeImprovement {
     // FIRST TEST:
     public static int[] testFirstExchangeRandomII() throws IOException {
         System.out.println("First Exchange Random Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest  + 2];
+        int[] firstIICompletionTime = new int[(files.length * numTest) + 2]; // + 1 for the average relative percentage deviation and the sum of CT
 
         int index = 0;
         int bestValueIndex = 0;
-        int sumCT = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
         float averageRelativePercDeviation = 0;
+        int previousNumJobs = numJobs;
         for (File file : files) {
             readFile(String.valueOf(file));
-            System.out.println(file);
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
 
-                int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--exchange");
-                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println("CT: "  + completionTime);
-                sumCT += completionTime;
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
+                int[] bestIIPermutation = firstImprovement(initializePermutation("--random"), "--exchange");
+                long endTime = System.currentTimeMillis();
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
         averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
-        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index] = (int) totalComputationTIme;
         firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
+
 
     public static int[] testFirstTransposeRandomII() throws IOException {
         System.out.println("First Transpose Random Iterative Improvement:");
@@ -812,11 +856,11 @@ public class IterativeImprovement {
             System.out.println(file);
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
-            for (int i = 0; i < numTest; i++ ){
+            for (int i = 0; i < numTest; i++) {
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
@@ -845,11 +889,11 @@ public class IterativeImprovement {
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            for (int i = 0; i < numTest; i++) {
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--random"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
@@ -865,33 +909,49 @@ public class IterativeImprovement {
 
     public static int[] testFirstExchangeSrzII() throws IOException {
         System.out.println("First Exchange SRZ Iterative Improvement:");
-        int[] firstIICompletionTime = new int[files.length * numTest + 2];
+        int[] firstIICompletionTime = new int[(files.length * numTest) + 2]; // + 1 for the average relative percentage deviation and the sum of CT
 
         int index = 0;
         int bestValueIndex = 0;
-        int sumCT = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
         float averageRelativePercDeviation = 0;
-
+        int previousNumJobs = numJobs;
         for (File file : files) {
             readFile(String.valueOf(file));
-            System.out.println(file);
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
 
-                int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--exchange");
-                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println("CT: "  + completionTime);
-                sumCT += completionTime;
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
+                int[] bestIIPermutation = firstImprovement(initializePermutation("--srz"), "--exchange");
+                long endTime = System.currentTimeMillis();
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(bestIIPermutation));
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
         averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
-        firstIICompletionTime[index] = sumCT;
+        firstIICompletionTime[index] = (int) totalComputationTIme;
         firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return firstIICompletionTime;
     }
@@ -912,18 +972,18 @@ public class IterativeImprovement {
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--transpose");
+            for (int i = 0; i < numTest; i++) {
 
-                int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--transpose");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
                 index++;
             }
         }
-        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        averageRelativePercDeviation = averageRelativePercDeviation / (1 * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
         firstIICompletionTime[index] = sumCT;
         firstIICompletionTime[index + 1] = (int) averageRelativePercDeviation;
@@ -946,11 +1006,11 @@ public class IterativeImprovement {
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
 
-            for (int i = 0; i < numTest; i++ ){
+            for (int i = 0; i < numTest; i++) {
 
                 int[] firstIIPermutation = firstImprovement(initializePermutation("--srz"), "--insert");
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(firstIIPermutation));
-                System.out.println("CT: "  + completionTime);
+                System.out.println("CT: " + completionTime);
                 sumCT += completionTime;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 firstIICompletionTime[index] = completionTime;
@@ -972,64 +1032,99 @@ public class IterativeImprovement {
 
         int index = 0;
         int bestValueIndex = 0;
-        int sumCT = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
         float averageRelativePercDeviation = 0;
+        int previousNumJobs = numJobs;
         for (File file : files) {
             readFile(String.valueOf(file));
-            System.out.println(file);
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
-            for (int i = 0; i < numTest; i++ ){
 
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
+
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
                 int[] VNDPermutation = variableNeighborhoodDescent("--one");
+                long endTime = System.currentTimeMillis();
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(VNDPermutation));
-                System.out.println("CT: "  + completionTime);
-                sumCT += completionTime;
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 VNDCompletionTime[index] = completionTime;
                 index++;
             }
         }
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
         averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
-        VNDCompletionTime[index] = sumCT;
+        VNDCompletionTime[index] = (int) totalComputationTIme;
         VNDCompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return VNDCompletionTime;
     }
 
 
     public static int[] testSecondOrderVND() throws IOException {
-        System.out.println("Second Order VND:");
         int[] VNDCompletionTime = new int[files.length * numTest + 2];
 
         int index = 0;
         int bestValueIndex = 0;
-        int sumCT = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
         float averageRelativePercDeviation = 0;
+        int previousNumJobs = numJobs;
         for (File file : files) {
             readFile(String.valueOf(file));
-            System.out.println(file);
             int bestValue = bestKnonwTCT[bestValueIndex];
             bestValueIndex++;
-            for (int i = 0; i < numTest; i++ ){
 
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
+
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
                 int[] VNDPermutation = variableNeighborhoodDescent("--two");
+                long endTime = System.currentTimeMillis();
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(VNDPermutation));
-                System.out.println("CT: "  + completionTime);
-                sumCT += completionTime;
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
                 averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
                 VNDCompletionTime[index] = completionTime;
                 index++;
             }
         }
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
         averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
         avgRelativePercDeviation = averageRelativePercDeviation;
-        VNDCompletionTime[index] = sumCT;
+        VNDCompletionTime[index] = (int) totalComputationTIme;
         VNDCompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return VNDCompletionTime;
     }
 
-    public static float computeRelativePercDeviation(int completionTime, int bestKnown){
+    public static float computeRelativePercDeviation(int completionTime, int bestKnown) {
         return 100 * ((float) (completionTime - bestKnown) / bestKnown);
     }
 }
