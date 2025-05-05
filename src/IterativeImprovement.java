@@ -126,14 +126,25 @@ public class IterativeImprovement {
                         System.out.println("Sum of Completion Time: " + testSecondOrderCompletionTimeValues[(files.length * numTest)]);
                         break;
                 }
-            } else {
+            }
+            else {
                 System.out.println("Usage of test:\n$java IterativeImprovement --test --<pivoting_rule> --<neighborhood> --<init_method> to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
                 System.out.println("For the VND Variants:\n$java IterativeImprovement --test --vnd --<neighborhood_order>");
             }
-        } else if (args.length < 2) {
+        } else if (args.length < 1) {
             System.out.println("Usage: $java IterativeImprovement --<file_name> --<pivoting_rule> --<neighborhood> --<init_method>\nif you want to launch VND algorithms: $java IterativeImprovement <vnd> <neighborhood_order>");
             System.out.println("Exemple: $java IterativeImprovement ./Benchmarks/ta051 --first --transpose --srz\n         $java IterativeIImprovement ./Benchmarks/ta051 --vnd --one\n");
-        } else {
+        }
+        else if (args.length < 3) {
+            readFile(args[0]);
+            if (args[1].equals("--ils")) {
+                int[] testILS = ILS_withHistory(200, 3, 5, 10);
+                System.out.println(Arrays.toString(testILS));
+                int[][] CTMatrix= computeCompletionTimeMatrix(testILS);
+                System.out.println(computeTotalCompletionTime(CTMatrix));
+            }
+        }
+        else {
             List<String> validPivotingRules = Arrays.asList("--first", "--best", "--vnd");
             List<String> validNeighborhoods = Arrays.asList("--exchange", "--transpose", "--insert", "--one", "--two");
             List<String> validInitMethods = Arrays.asList("--random", "--srz");
@@ -464,6 +475,86 @@ public class IterativeImprovement {
         return currentSolution;
     }
 
+
+    // HYBRID SLS METHOD:
+    public static int[] ILS_withHistory(int maxIterations, int kMin, int kMax, int eliteSize) {
+        // Initialisation
+        int[] permutation = new int[numJobs];
+        for (int i = 0; i < numJobs; i++) permutation[i] = i;
+        getRandomPermutation(permutation);
+
+        int[] current = bestImprovement(permutation, "--exchange");
+        int[][] currentMatrix = computeCompletionTimeMatrix(current);
+        int currentCost = computeTotalCompletionTime(currentMatrix);
+
+        int[] best = current.clone();
+        int bestCost = currentCost;
+
+        // Elite History (memory):
+        List<int[]> eliteSolutions = new ArrayList<>();
+        List<Integer> eliteCosts = new ArrayList<>();
+        eliteSolutions.add(best.clone());
+        eliteCosts.add(bestCost);
+
+        Random rand = new Random();
+
+        for (int iter = 0; iter < maxIterations; iter++) {
+            //Perturbation (random k-opt)
+            int[] perturbed = best.clone();
+            int k = rand.nextInt(kMax - kMin + 1) + kMin;
+            randomKOpt(perturbed, k, rand);
+
+            // Local search
+            int[] improved = bestImprovement(perturbed, "--exchange");
+            int[][] newMatrix = computeCompletionTimeMatrix(improved);
+            int newCost = computeTotalCompletionTime(newMatrix);
+
+            // Acceptance criterion based on Elite Set:
+            int worstEliteCost = Collections.max(eliteCosts);
+            if (newCost <= worstEliteCost) {
+                best = improved;
+                bestCost = newCost;
+
+                eliteSolutions.add(best.clone());
+                eliteCosts.add(bestCost);
+
+                if (eliteSolutions.size() > eliteSize) {
+                    int idxWorst = eliteCosts.indexOf(worstEliteCost);
+                    eliteSolutions.remove(idxWorst);
+                    eliteCosts.remove(idxWorst);
+                }
+            }
+        }
+
+        return best;
+    }
+
+    private static void randomKOpt(int[] permutation, int k, Random rand) {
+        int n = permutation.length;
+
+        // Select K elements randomly
+        Set<Integer> positions = new HashSet<>();
+        while (positions.size() < k) {
+            positions.add(rand.nextInt(n));
+        }
+        List<Integer> posList = new ArrayList<>(positions);
+
+        // shuffle the selected elements.
+        List<Integer> selected = new ArrayList<>();
+        for (int pos : posList) {
+            selected.add(permutation[pos]);
+        }
+        Collections.shuffle(selected, rand);
+
+        // Insert the selected elements
+        for (int i = 0; i < posList.size(); i++) {
+            permutation[posList.get(i)] = selected.get(i);
+        }
+    }
+
+    // SIMPLE SLS METHOD:
+
+
     public static void swap(int[] permutation, int i, int j) {
         int temp = permutation[i];
         permutation[i] = permutation[j];
@@ -488,6 +579,7 @@ public class IterativeImprovement {
         }
         return copy;
     }
+
 
     public static int[][] computeCompletionTimeMatrixAfterMove(
             int[] permutation,
