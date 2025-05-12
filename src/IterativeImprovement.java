@@ -127,6 +127,16 @@ public class IterativeImprovement {
                         break;
                 }
             }
+            else if (args[1].equals("--ils")){
+                int[] testILSValues = testILS();
+                System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                System.out.println("Sum of Completion Time: " + testILSValues[(files.length * numTest)]);
+                }
+
+            else if (args[1].equals("--gls")){
+
+
+            }
             else {
                 System.out.println("Usage of test:\n$java IterativeImprovement --test --<pivoting_rule> --<neighborhood> --<init_method> to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
                 System.out.println("For the VND Variants:\n$java IterativeImprovement --test --vnd --<neighborhood_order>");
@@ -137,10 +147,27 @@ public class IterativeImprovement {
         }
         else if (args.length < 3) {
             readFile(args[0]);
+            int maxIter;
+            if (numJobs==50) {
+                maxIter = 122*500;
+            }
+            else if(numJobs ==100){
+                maxIter = 1619*500;
+            }
+            else{
+                maxIter = 33208*100;
+            }
             if (args[1].equals("--ils")) {
-                int[] testILS = ILS_withHistory(200, 3, 5, 10);
+                int[] testILS = ILS_withHistory(maxIter, 3, 5, 10);
                 System.out.println(Arrays.toString(testILS));
                 int[][] CTMatrix= computeCompletionTimeMatrix(testILS);
+                System.out.println(computeTotalCompletionTime(CTMatrix));
+            }
+
+            else if (args[1].equals("--gls")){
+                int[] testGLS = guidedLocalSearch(maxIter);
+                System.out.println(Arrays.toString(testGLS));
+                int[][] CTMatrix= computeCompletionTimeMatrix(testGLS);
                 System.out.println(computeTotalCompletionTime(CTMatrix));
             }
         }
@@ -478,50 +505,59 @@ public class IterativeImprovement {
 
     // HYBRID SLS METHOD:
     public static int[] ILS_withHistory(int maxIterations, int kMin, int kMax, int eliteSize) {
-        // Initialisation
         int[] permutation = new int[numJobs];
         for (int i = 0; i < numJobs; i++) permutation[i] = i;
         getRandomPermutation(permutation);
 
-        int[] current = bestImprovement(permutation, "--exchange");
+        int[] current = firstImprovement(permutation, "--exchange");
         int[][] currentMatrix = computeCompletionTimeMatrix(current);
         int currentCost = computeTotalCompletionTime(currentMatrix);
 
         int[] best = current.clone();
         int bestCost = currentCost;
 
-        // Elite History (memory):
+        // Elite memory with costs tracked
         List<int[]> eliteSolutions = new ArrayList<>();
         List<Integer> eliteCosts = new ArrayList<>();
         eliteSolutions.add(best.clone());
         eliteCosts.add(bestCost);
+        int worstEliteCost = bestCost;
 
         Random rand = new Random();
 
         for (int iter = 0; iter < maxIterations; iter++) {
-            //Perturbation (random k-opt)
+            // Perturbation
             int[] perturbed = best.clone();
             int k = rand.nextInt(kMax - kMin + 1) + kMin;
             randomKOpt(perturbed, k, rand);
 
             // Local search
-            int[] improved = bestImprovement(perturbed, "--exchange");
+            int[] improved = firstImprovement(perturbed, "--exchange");
             int[][] newMatrix = computeCompletionTimeMatrix(improved);
             int newCost = computeTotalCompletionTime(newMatrix);
 
-            // Acceptance criterion based on Elite Set:
-            int worstEliteCost = Collections.max(eliteCosts);
+            // Acceptance criterion
             if (newCost <= worstEliteCost) {
                 best = improved;
                 bestCost = newCost;
-
                 eliteSolutions.add(best.clone());
                 eliteCosts.add(bestCost);
 
                 if (eliteSolutions.size() > eliteSize) {
-                    int idxWorst = eliteCosts.indexOf(worstEliteCost);
+                    int idxWorst = 0;
+                    for (int i = 1; i < eliteCosts.size(); i++) {
+                        if (eliteCosts.get(i) > eliteCosts.get(idxWorst)) {
+                            idxWorst = i;
+                        }
+                    }
                     eliteSolutions.remove(idxWorst);
                     eliteCosts.remove(idxWorst);
+                }
+
+                // Recalculer le pire coût uniquement quand la taille a changé
+                worstEliteCost = eliteCosts.get(0);
+                for (int cost : eliteCosts) {
+                    if (cost > worstEliteCost) worstEliteCost = cost;
                 }
             }
         }
@@ -553,6 +589,97 @@ public class IterativeImprovement {
     }
 
     // SIMPLE SLS METHOD:
+    public static int[] guidedLocalSearch(int maxIterations) {
+        // Generate initiale candidate solution s:
+        int[] permuatation = new int[numJobs];
+        for (int i = 0; i < numJobs; i++){
+            permuatation[i] = i;
+        }
+        getRandomPermutation(permuatation);
+        int[][] initMatrix = computeCompletionTimeMatrix(permuatation);
+        int initialCost = computeTotalCompletionTime(initMatrix);
+
+
+        double alpha = 0.4;  // average value between 0.1 and 0.5.
+        // Penalty Update: alpha . (f(s0) / n)
+        double lambda = alpha * initialCost / (numJobs - 1);  // TODO expliquer le moins dans le rapport vient du fait qu'on teste le nb de characteristiques.
+
+        int[] current = permuatation.clone();
+        int[][] penalties = new int[numJobs][numJobs];  // penalty init: set all penalties to 0
+
+        int[][] currentMatrix = computeCompletionTimeMatrix(current);
+        int currentCost = computeTotalCompletionTime(currentMatrix);
+        int[] best = current.clone();
+        int bestCost = currentCost;
+
+
+        for (int iter = 0; iter < maxIterations; iter++) {
+
+            int penaltyTerm = computePenaltyTerm(current, penalties);
+            int augmentedCost = currentCost + (int)(lambda * penaltyTerm);
+
+            // Perform subsidiary local search on s; using Iterative First Improvement with 2-exchange:
+            int[] candidate = firstImprovement(current.clone(), "--exchange");
+            int[][] candidateMatrix = computeCompletionTimeMatrix(candidate);
+            int candidateCost = computeTotalCompletionTime(candidateMatrix);
+            int newPenaltyTerm = computePenaltyTerm(candidate, penalties);
+            int newAugmentedCost = candidateCost + (int)(lambda * newPenaltyTerm);
+
+
+            // Pertubated criterion:
+            if (newAugmentedCost < augmentedCost && !Arrays.equals(candidate, current)) {
+                // vraie amélioration, on l'accepte
+                current = candidate;
+                currentCost = candidateCost;
+            } else {
+                if (iter == 9990) {
+                    // soit coût plus mauvais, soit même solution => on pénalise
+                    System.out.println(Arrays.deepToString(penalties));
+                    System.out.println(">>> Penalité mise à jour à l’itération " + iter);
+                }
+                double maxUtility = -1;
+                List<int[]> maxPairs = new ArrayList<>();
+
+                for (int i = 0; i < current.length - 1; i++) {
+                    int a = current[i];
+                    int b = current[i + 1];
+                    int cost = processingTimesMatrix[0][a] + processingTimesMatrix[0][b];
+                    double utility = cost / (1.0 + penalties[a][b]);
+
+                    if (utility > maxUtility) {
+                        maxUtility = utility;
+                        maxPairs.clear();
+                        maxPairs.add(new int[]{a, b});
+                    } else if (utility == maxUtility) {
+                        maxPairs.add(new int[]{a, b});
+                    }
+                }
+
+                for (int[] pair : maxPairs) {
+                    penalties[pair[0]][pair[1]]++;
+                }
+            }
+
+            // Acceptance criterion
+            if (currentCost <= bestCost) {
+                best = current.clone();
+                bestCost = currentCost;
+            }
+        }
+
+        return best;
+    }
+
+
+    private static int computePenaltyTerm(int[] permutation, int[][] penalties) {
+        int total = 0;
+        for (int i = 0; i < permutation.length - 1; i++) {
+            int a = permutation[i];
+            int b = permutation[i + 1];
+            total += penalties[a][b];
+        }
+        return total;
+    }
 
 
     public static void swap(int[] permutation, int i, int j) {
@@ -1214,6 +1341,86 @@ public class IterativeImprovement {
         VNDCompletionTime[index] = (int) totalComputationTIme;
         VNDCompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return VNDCompletionTime;
+    }
+
+    public static void writeResultsToCSV(String filename, List<Integer> results) {
+        try (FileWriter writer = new FileWriter(filename)) {
+            writer.append("Run,CompletionTime\n");
+            for (int i = 0; i < results.size(); i++) {
+                writer.append(String.valueOf(i + 1))
+                        .append(",")
+                        .append(String.valueOf(results.get(i)))
+                        .append("\n");
+            }
+            System.out.println("Résultats écrits dans : " + filename);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static int[] testILS() throws IOException {
+        int[] ILSCompletionTime = new int[files.length * numTest + 2];
+
+        int index = 0;
+        int bestValueIndex = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
+        float averageRelativePercDeviation = 0;
+        int previousNumJobs = numJobs;
+        int maxIter;
+
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
+            if (numJobs==50) {
+                maxIter = 122*500;
+            }
+            else if(numJobs ==100){
+                maxIter = 1619*500;
+            }
+            else{
+                maxIter = 33208*100;
+                numTest = 3; // CASE FOR 200 JOBS
+            }
+
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
+                System.out.println("oui");
+                int[] ILSPermuation = ILS_withHistory(maxIter, 3, 5, 10);
+                long endTime = System.currentTimeMillis();
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(ILSPermuation));
+                //writeResultsToCSV("results/my_instance_GLS.csv", completionTimes);
+
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
+                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
+                ILSCompletionTime[index] = completionTime;
+                index++;
+            }
+
+        }
+
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        ILSCompletionTime[index] = (int) totalComputationTIme;
+        ILSCompletionTime[index + 1] = (int) averageRelativePercDeviation;
+        return ILSCompletionTime;
+
     }
 
     public static float computeRelativePercDeviation(int completionTime, int bestKnown) {
