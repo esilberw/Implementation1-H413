@@ -134,8 +134,9 @@ public class IterativeImprovement {
                 }
 
             else if (args[1].equals("--gls")){
-
-
+                int[] testGLSValues = testGLS();
+                System.out.println("(Float) Average relative percentage deviation: " + avgRelativePercDeviation);
+                System.out.println("Sum of Completion Time: " + testGLSValues[(files.length * numTest)]);
             }
             else {
                 System.out.println("Usage of test:\n$java IterativeImprovement --test --<pivoting_rule> --<neighborhood> --<init_method> to test the algorithms and compute the average relative percentage deviation and the sum of completion time");
@@ -157,8 +158,9 @@ public class IterativeImprovement {
             else{
                 maxIter = 33208*100;
             }
+            System.out.println("Max Iterations: " + maxIter);
             if (args[1].equals("--ils")) {
-                int[] testILS = ILS_withHistory(maxIter, 3, 5, 10);
+                int[] testILS = ILS_withHistory(maxIter, 3, 8, 8);
                 System.out.println(Arrays.toString(testILS));
                 int[][] CTMatrix= computeCompletionTimeMatrix(testILS);
                 System.out.println(computeTotalCompletionTime(CTMatrix));
@@ -380,51 +382,39 @@ public class IterativeImprovement {
     }
 
     public static int[] firstImprovement(int[] permutation, String neighborhood) {
-        int[] firstImprovePermutation = Arrays.copyOf(permutation, numJobs);
-        int[][] completionTimeMatrix = computeCompletionTimeMatrix(firstImprovePermutation);
-        int minCompletionTime = computeTotalCompletionTime(completionTimeMatrix);
+        int[] currentPermutation = Arrays.copyOf(permutation, numJobs);
+        int[][] completionTimeMatrix = computeCompletionTimeMatrix(currentPermutation);
+        int currentCost = computeTotalCompletionTime(completionTimeMatrix);
+
         boolean improved = true;
 
         while (improved) {
             improved = false;
 
-            for (int i = 0; i < numJobs; i++) {
+            for (int i = 0; i < numJobs - 1; i++) {
                 for (int j = i + 1; j < numJobs; j++) {
+                    swap(currentPermutation, i, j);
 
-                    int[] newPermutation = firstImprovePermutation.clone();
+                    int fromIndex = Math.min(i, j);
+                    int[][] newMatrix = computeCompletionTimeMatrixAfterMove(currentPermutation, completionTimeMatrix, fromIndex);
+                    int newCost = computeTotalCompletionTime(newMatrix);
 
-                    switch (neighborhood) {
-                        case "--exchange":
-                            swap(newPermutation, i, j);
-                            break;
-                        case "--transpose":
-                            if (j == i + 1) swap(newPermutation, i, j); // swap only if both jobs are adjacent
-                            break;
-                        case "--insert":
-                            insert(newPermutation, i, j);
-                            break;
-                    }
+                    if (newCost < currentCost) {
 
-                    int[][] newCompletionTimeMatrix = computeCompletionTimeMatrixAfterMove(newPermutation, completionTimeMatrix, i);
-                    int newCompletionTime = computeTotalCompletionTime(newCompletionTimeMatrix);
-
-                    if (newCompletionTime < minCompletionTime) {
-                        minCompletionTime = newCompletionTime;
-                        firstImprovePermutation = newPermutation.clone();
+                        completionTimeMatrix = newMatrix;
+                        currentCost = newCost;
                         improved = true;
-                        completionTimeMatrix = newCompletionTimeMatrix;
-                        break;  // First improvement is found, we stop the for j loop
+                        break;
+                    } else {
+                        swap(currentPermutation, i, j);
                     }
                 }
 
-                if (improved) {
-
-                    break;  // First improvement is found, we stop the for i loop
-                }
-
+                if (improved) break;
             }
         }
-        return firstImprovePermutation;
+
+        return currentPermutation;
     }
 
     public static int[] bestImprovement(int[] permutation, String neighborhood) {
@@ -509,38 +499,42 @@ public class IterativeImprovement {
         for (int i = 0; i < numJobs; i++) permutation[i] = i;
         getRandomPermutation(permutation);
 
-        int[] current = firstImprovement(permutation, "--exchange");
+        int[] current = bestImprovement(permutation, "--exchange");
         int[][] currentMatrix = computeCompletionTimeMatrix(current);
         int currentCost = computeTotalCompletionTime(currentMatrix);
 
-        int[] best = current.clone();
+        int[] best = Arrays.copyOf(current, current.length);
         int bestCost = currentCost;
 
-        // Elite memory with costs tracked
+        // Elite memory
         List<int[]> eliteSolutions = new ArrayList<>();
         List<Integer> eliteCosts = new ArrayList<>();
-        eliteSolutions.add(best.clone());
+        eliteSolutions.add(Arrays.copyOf(best, best.length));
         eliteCosts.add(bestCost);
-        int worstEliteCost = bestCost;
 
         Random rand = new Random();
+        int noImprovementCounter = 0;
+        int maxNoImprovement = 15000;
 
         for (int iter = 0; iter < maxIterations; iter++) {
+            if (iter % 1000 == 0) {
+                System.out.println("Iter " + iter + " | Best cost: " + bestCost);
+            }
+
             // Perturbation
-            int[] perturbed = best.clone();
+            int[] perturbed = Arrays.copyOf(best, best.length);
             int k = rand.nextInt(kMax - kMin + 1) + kMin;
             randomKOpt(perturbed, k, rand);
 
             // Local search
-            int[] improved = firstImprovement(perturbed, "--exchange");
-            int[][] newMatrix = computeCompletionTimeMatrix(improved);
-            int newCost = computeTotalCompletionTime(newMatrix);
+            int[] improved = bestImprovement(perturbed, "--exchange");
+            int newCost = computeTotalCompletionTime(computeCompletionTimeMatrix(improved));
 
-            // Acceptance criterion
-            if (newCost <= worstEliteCost) {
-                best = improved;
+            if (newCost < bestCost) {
+                best = Arrays.copyOf(improved, improved.length);
                 bestCost = newCost;
-                eliteSolutions.add(best.clone());
+
+                eliteSolutions.add(best);
                 eliteCosts.add(bestCost);
 
                 if (eliteSolutions.size() > eliteSize) {
@@ -554,11 +548,14 @@ public class IterativeImprovement {
                     eliteCosts.remove(idxWorst);
                 }
 
-                // Recalculer le pire coût uniquement quand la taille a changé
-                worstEliteCost = eliteCosts.get(0);
-                for (int cost : eliteCosts) {
-                    if (cost > worstEliteCost) worstEliteCost = cost;
-                }
+                noImprovementCounter = 0;  // reset since improved
+            } else {
+                noImprovementCounter++;
+            }
+
+            if (noImprovementCounter >= maxNoImprovement) {
+                System.out.println("Stopped early at iter " + iter + " due to stagnation.");
+                break;
             }
         }
 
@@ -599,8 +596,7 @@ public class IterativeImprovement {
         int[][] initMatrix = computeCompletionTimeMatrix(permuatation);
         int initialCost = computeTotalCompletionTime(initMatrix);
 
-
-        double alpha = 0.4;  // average value between 0.1 and 0.5.
+        double alpha = 0.6;  // Increased value to enhance influence of penalties
         // Penalty Update: alpha . (f(s0) / n)
         double lambda = alpha * initialCost / (numJobs - 1);  // TODO expliquer le moins dans le rapport vient du fait qu'on teste le nb de characteristiques.
 
@@ -612,38 +608,47 @@ public class IterativeImprovement {
         int[] best = current.clone();
         int bestCost = currentCost;
 
+        int noImprovementCounter = 0;
+        int maxNoImprovement = 15000;
 
         for (int iter = 0; iter < maxIterations; iter++) {
+
+            if (iter % 1000 == 0) {
+                System.out.println("Iter " + iter + " | Best cost: " + bestCost);
+            }
+
+            // Inject small perturbation every 2000 non-improving iterations
+            if (noImprovementCounter % 2000 == 0 && noImprovementCounter > 0) {
+                randomKOpt(current, 3, new Random());
+                currentMatrix = computeCompletionTimeMatrix(current);
+                currentCost = computeTotalCompletionTime(currentMatrix);
+            }
 
             int penaltyTerm = computePenaltyTerm(current, penalties);
             int augmentedCost = currentCost + (int)(lambda * penaltyTerm);
 
-            // Perform subsidiary local search on s; using Iterative First Improvement with 2-exchange:
-            int[] candidate = firstImprovement(current.clone(), "--exchange");
+            // Perform subsidiary local search on s; using Iterative Best Improvement with 2-exchange:
+            int[] candidate = bestImprovement(current.clone(), "--exchange");
             int[][] candidateMatrix = computeCompletionTimeMatrix(candidate);
             int candidateCost = computeTotalCompletionTime(candidateMatrix);
             int newPenaltyTerm = computePenaltyTerm(candidate, penalties);
             int newAugmentedCost = candidateCost + (int)(lambda * newPenaltyTerm);
 
-
             // Pertubated criterion:
             if (newAugmentedCost < augmentedCost && !Arrays.equals(candidate, current)) {
-                // vraie amélioration, on l'accepte
                 current = candidate;
                 currentCost = candidateCost;
             } else {
-                if (iter == 9990) {
-                    // soit coût plus mauvais, soit même solution => on pénalise
-                    System.out.println(Arrays.deepToString(penalties));
-                    System.out.println(">>> Penalité mise à jour à l’itération " + iter);
-                }
                 double maxUtility = -1;
                 List<int[]> maxPairs = new ArrayList<>();
 
                 for (int i = 0; i < current.length - 1; i++) {
                     int a = current[i];
                     int b = current[i + 1];
-                    int cost = processingTimesMatrix[0][a] + processingTimesMatrix[0][b];
+                    int cost = 0;
+                    for (int m = 0; m < numMachines; m++) {
+                        cost += processingTimesMatrix[m][a] + processingTimesMatrix[m][b];
+                    }
                     double utility = cost / (1.0 + penalties[a][b]);
 
                     if (utility > maxUtility) {
@@ -656,20 +661,27 @@ public class IterativeImprovement {
                 }
 
                 for (int[] pair : maxPairs) {
-                    penalties[pair[0]][pair[1]]++;
+                    penalties[pair[0]][pair[1]] += 2; // Stronger penalty increment to enhance diversification
                 }
             }
 
             // Acceptance criterion
-            if (currentCost <= bestCost) {
+            if (currentCost < bestCost) {
                 best = current.clone();
                 bestCost = currentCost;
+                noImprovementCounter = 0; // reset since improvement occurred
+            } else {
+                noImprovementCounter++;
+            }
+
+            if (noImprovementCounter >= maxNoImprovement) {
+                System.out.println("Stopped early at iteration " + iter + " due to no improvement.");
+                break;
             }
         }
 
         return best;
     }
-
 
     private static int computePenaltyTerm(int[] permutation, int[][] penalties) {
         int total = 0;
@@ -1343,24 +1355,9 @@ public class IterativeImprovement {
         return VNDCompletionTime;
     }
 
-    public static void writeResultsToCSV(String filename, List<Integer> results) {
-        try (FileWriter writer = new FileWriter(filename)) {
-            writer.append("Run,CompletionTime\n");
-            for (int i = 0; i < results.size(); i++) {
-                writer.append(String.valueOf(i + 1))
-                        .append(",")
-                        .append(String.valueOf(results.get(i)))
-                        .append("\n");
-            }
-            System.out.println("Résultats écrits dans : " + filename);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
     public static int[] testILS() throws IOException {
         int[] ILSCompletionTime = new int[files.length * numTest + 2];
-
         int index = 0;
         int bestValueIndex = 0;
         long totalComputationTIme = 0;
@@ -1368,6 +1365,9 @@ public class IterativeImprovement {
         float averageRelativePercDeviation = 0;
         int previousNumJobs = numJobs;
         int maxIter;
+        float AVRP50=0;
+        float AVRP100=0;
+        float AVRP200=0;
 
         for (File file : files) {
             readFile(String.valueOf(file));
@@ -1376,11 +1376,16 @@ public class IterativeImprovement {
 
             if (numJobs==50) {
                 maxIter = 122*500;
+                continue;
             }
             else if(numJobs ==100){
-                maxIter = 1619*500;
+                AVRP50 = AVRP50 / (numTest * 10);
+                System.out.println("AVRP 50: " + AVRP50);
+                maxIter = 161*500;
             }
             else{
+                AVRP100 = AVRP100 / (numTest * 10);
+                System.out.println("AVRP 100: " + AVRP100);
                 maxIter = 33208*100;
                 numTest = 3; // CASE FOR 200 JOBS
             }
@@ -1393,25 +1398,38 @@ public class IterativeImprovement {
                 previousNumJobs = numJobs;
             }
 
+            System.out.println(file);
+
             for (int i = 0; i < numTest; i++) {
                 long startTime = System.currentTimeMillis();
-                System.out.println("oui");
-                int[] ILSPermuation = ILS_withHistory(maxIter, 3, 5, 10);
+                int[] ILSPermuation = ILS_withHistory(maxIter, 3, 8, 8);
                 long endTime = System.currentTimeMillis();
                 int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(ILSPermuation));
-                //writeResultsToCSV("results/my_instance_GLS.csv", completionTimes);
 
                 System.out.println("Completion Time: " + completionTime);
                 long timeDuration = endTime - startTime;
                 System.out.println("Computation Time: " + timeDuration + " ms");
                 totalComputationTIme += timeDuration;
-                averageRelativePercDeviation += computeRelativePercDeviation(completionTime, bestValue);
+                float AVRP = computeRelativePercDeviation(completionTime, bestValue);
+                averageRelativePercDeviation += AVRP ;
                 ILSCompletionTime[index] = completionTime;
                 index++;
-            }
 
+                if (numJobs==50) {
+                    AVRP50 += AVRP;
+                }
+                else if (numJobs ==100){
+                    AVRP100 += AVRP;
+                }
+                else{
+                    AVRP200 += AVRP;
+                }
+            }
         }
 
+
+        AVRP200 = AVRP200 / (numTest * 10);
+        System.out.println("AVRP 50: " + AVRP50 + " | AVRP 100: " + AVRP100 + " | AVRP 200: " + AVRP200);
         System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
         averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
         System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
@@ -1420,6 +1438,90 @@ public class IterativeImprovement {
         ILSCompletionTime[index] = (int) totalComputationTIme;
         ILSCompletionTime[index + 1] = (int) averageRelativePercDeviation;
         return ILSCompletionTime;
+
+    }
+
+    public static int[] testGLS() throws IOException {
+        int[] GLSCompletionTime = new int[files.length * numTest + 2];
+        int index = 0;
+        int bestValueIndex = 0;
+        long totalComputationTIme = 0;
+        float averageTotalComputationTime = 0;
+        float averageRelativePercDeviation = 0;
+        int previousNumJobs = numJobs;
+        int maxIter;
+        float AVRP50=0;
+        float AVRP100=0;
+        float AVRP200=0;
+
+        for (File file : files) {
+            readFile(String.valueOf(file));
+            int bestValue = bestKnonwTCT[bestValueIndex];
+            bestValueIndex++;
+
+            if (numJobs==50) {
+                maxIter = 122*500;
+            }
+            else if(numJobs ==100){
+                AVRP50 = AVRP50 / (numTest * 10);
+                System.out.println("AVRP 50: " + AVRP50);
+                maxIter = 161*500;
+            }
+            else{
+                AVRP100 = AVRP100 / (numTest * 10);
+                System.out.println("AVRP 100: " + AVRP100);
+                maxIter = 33208*500;
+                numTest = 3; // CASE FOR 200 JOBS
+            }
+
+            if (numJobs > previousNumJobs) { // to compute statistics for each size of instance.
+                System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+                averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+                System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+                totalComputationTIme = 0;
+                previousNumJobs = numJobs;
+            }
+
+            System.out.println(file);
+
+            for (int i = 0; i < numTest; i++) {
+                long startTime = System.currentTimeMillis();
+                int[] GLSPermuation = guidedLocalSearch(maxIter);
+                long endTime = System.currentTimeMillis();
+                int completionTime = computeTotalCompletionTime(computeCompletionTimeMatrix(GLSPermuation));
+
+                System.out.println("Completion Time: " + completionTime);
+                long timeDuration = endTime - startTime;
+                System.out.println("Computation Time: " + timeDuration + " ms");
+                totalComputationTIme += timeDuration;
+                float AVRP = computeRelativePercDeviation(completionTime, bestValue);
+                averageRelativePercDeviation += AVRP ;
+                GLSCompletionTime[index] = completionTime;
+                index++;
+
+                if (numJobs==50) {
+                    AVRP50 += AVRP;
+                }
+                else if (numJobs ==100){
+                    AVRP100 += AVRP;
+                }
+                else{
+                    AVRP200 += AVRP;
+                }
+            }
+        }
+
+
+        AVRP200 = AVRP200 / (numTest * 10);
+        System.out.println("AVRP 50: " + AVRP50 + " | AVRP 100: " + AVRP100 + " | AVRP 200: " + AVRP200);
+        System.out.println("Total computation time for instance size of " + previousNumJobs + " jobs: " + totalComputationTIme + "ms");
+        averageTotalComputationTime = (float) totalComputationTIme / (numTest * 10);
+        System.out.println("Average computation time for instance size of " + previousNumJobs + " jobs: " + averageTotalComputationTime + "ms");
+        averageRelativePercDeviation = averageRelativePercDeviation / (numTest * files.length);
+        avgRelativePercDeviation = averageRelativePercDeviation;
+        GLSCompletionTime[index] = (int) totalComputationTIme;
+        GLSCompletionTime[index + 1] = (int) averageRelativePercDeviation;
+        return GLSCompletionTime;
 
     }
 
