@@ -1,4 +1,4 @@
-Project Implementation #1 - Heurisitc Optimization INFO-H413 - SILBERWASSER ELLIOT 518397
+Project Implementation #2- Heurisitc Optimization INFO-H413 - SILBERWASSER ELLIOT 518397
  
 # USAGE
 NOTE: In the directory of this project, you already have the .class file to launch directly thre project. Not need to compile it.
