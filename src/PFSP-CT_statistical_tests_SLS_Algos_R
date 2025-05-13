@@ -1,0 +1,14 @@
+# Charger les bibliothèques nécessaires
+# Exemple de données : deux groupes à comparer
+best.known <- c(125831, 119247, 116459, 120261, 118184, 120586, 122880, 122489, 121872, 123954, 365463, 372001, 370027, 372393, 368915, 370908, 373408, 384525, 374423, 379296)
+                
+ILS.cost = c(126958, 120266, 117422, 121702, 119232, 121435, 124081, 123256, 122690, 125139, 370094, 376850, 375206, 378886, 373348, 374515, 378510, 389960, 378877, 384043)
+
+GLS.cost = c(129381, 122642, 120801, 124453, 122540, 123604, 125811, 126393, 125705, 127041, 378826, 385068, 380892, 385653, 380343, 3844479, 385576, 396796,)
+
+ILS.cost <- 100 * (ILS.cost - best.known) / best.known
+GLS.cost <- 100 * (GLS.cost - best.known) / best.known
+
+t.test = (ILS.cost , GLS.cost, paired = T)$p.value
+
+wilcox.test(ILS.cost, GLS.cost, paired = T)$p.value

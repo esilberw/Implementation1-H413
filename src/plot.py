@@ -4,7 +4,7 @@ import numpy as np
 # Example data
 job_sizes = [50, 100]
 arpd_ils = [0.859745, 1.516760535]
-arpd_gls = [3.028411, ]
+arpd_gls = [3.028411, 3.3471324]
 
 x = np.arange(len(job_sizes))  # position des groupes (50, 100)
 width = 0.25  # largeur des barres
