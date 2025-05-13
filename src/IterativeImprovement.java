@@ -1376,7 +1376,6 @@ public class IterativeImprovement {
 
             if (numJobs==50) {
                 maxIter = 122*500;
-                continue;
             }
             else if(numJobs ==100){
                 AVRP50 = AVRP50 / (numTest * 10);
